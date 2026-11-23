@@ -161,3 +161,37 @@ hi:[
 ['Algorithmic bias in healthcare AI?','The model works worse for some groups because of unrepresentative data or design.'],
 ['First FDA-authorized autonomous AI diagnostic system (2018)?','IDx-DR (now LumineticsCore) — diabetic retinopathy screening from retinal photos.'],
 ['SaMD?','Software as a Medical Device — software (incl. AI) intended for medical purposes, regulated as a device.']]};
+
+/* ===== courses + modules ===== */
+const DEFAULT_COURSES = [
+  { id: 'nclex', name: 'NCLEX-RN', icon: '🩺', color: '#5856d6', modules: ['Fundamentals', 'Pharmacology', 'Labs & Values', 'Med-Surg', 'Maternity', 'Pediatrics', 'Mental Health', 'Leadership & Delegation', 'Safety & Infection', 'NGN Case Studies'] },
+  { id: 'oph', name: 'Ophthalmology', icon: '👁️', color: '#30a8bf', modules: ['Anatomy & Physiology', 'Diseases', 'Medications', 'Procedures & Surgery', 'Devices & Instruments', 'Sterilization & Infection', 'Quality & Workflow', 'Tricks & Pearls'] },
+  { id: 'eng', name: 'English', icon: '🗣️', color: '#f08a00', modules: ['Vocabulary', 'Grammar', 'Stories & Reading', 'Listening', 'Speaking', 'Writing', 'Medical English'] },
+  { id: 'hi', name: 'Health Informatics & AI', icon: '🤖', color: '#af52de', modules: ['Foundations', 'Data Standards', 'Python', 'Machine Learning', 'AI in Healthcare', 'Projects'] }];
+function makeCourses() { return DEFAULT_COURSES.map(c => ({ id: c.id, name: c.name, icon: c.icon, color: c.color, modules: c.modules.map(n => ({ id: 'm' + uid(), name: n })) })); }
+const MOD_RULES = {
+  oph: [[/cap color|latanoprost|timolol|brimonidine|prednisolone|anesthetic|punctal|drops|atropine|anti-vegf|fluorescein|drug/i, 'Medications'], [/tass|spaulding|tonometer|steril/i, 'Sterilization & Infection'], [/time-out/i, 'Quality & Workflow'], [/gas bubble|vitrectomy|surgery|cataract|preference/i, 'Procedures & Surgery'], [/iop range|anatomy/i, 'Anatomy & Physiology'], [/./, 'Diseases']],
+  nclex: [[/antidote|suffix/i, 'Pharmacology'], [/range|normal|level|inr|abg/i, 'Labs & Values'], [/precautions|ppe|c\. diff/i, 'Safety & Infection'], [/delegat|prioritiz|uap/i, 'Leadership & Delegation'], [/clinical judgment/i, 'NGN Case Studies'], [/ecg/i, 'Med-Surg'], [/./, 'Fundamentals']],
+  eng: [[/^"|sbar|informed consent|adverse event|discharged|follow-up/i, 'Medical English'], [/vocab/i, 'Vocabulary'], [/./, 'Vocabulary']],
+  hi: [[/sensitivity|specificity|ppv|auc|overfitting|train|supervised|bias/i, 'Machine Learning'], [/fda|samd|idx|project/i, 'AI in Healthcare'], [/hl7|icd|snomed|loinc|rxnorm|interoperab/i, 'Data Standards'], [/./, 'Foundations']]};
+function guessModule(cid, text) {
+  const c = course(cid), rules = MOD_RULES[cid]; if (!c || !rules) return null;
+  for (const [re, name] of rules) if (re.test(text)) { const m = c.modules.find(x => x.name === name); if (m) return m.id; }
+  return null;
+}
+const modByName = (cid, name) => { const c = course(cid); const m = c && c.modules.find(x => x.name === name); return m ? m.id : null; };
+
+/* ===== starter questions (Quizlet / NCLEX style) ===== */
+const QSEED = [
+  ['nclex', 'Med-Surg', 'mcq', 'A client\'s potassium is 6.8 mEq/L. Which ECG change should the nurse expect?', ['Tall, peaked T waves', 'Prominent U waves', 'Flat T waves with ST depression', 'No ECG change is expected'], [0], 'Hyperkalemia causes tall peaked T waves (later wide QRS). U waves and flat T waves point to hypokalemia.'],
+  ['nclex', 'Safety & Infection', 'sata', 'Which clients need airborne precautions? Select all that apply.', ['Pulmonary tuberculosis', 'Measles (rubeola)', 'Varicella (chickenpox)', 'Seasonal influenza', 'C. difficile diarrhea'], [0, 1, 2], 'TB, measles and varicella are airborne (N95, negative-pressure room). Influenza = droplet. C. diff = contact (soap and water).'],
+  ['nclex', 'Leadership & Delegation', 'mcq', 'Which task can the RN delegate to unlicensed assistive personnel (UAP)?', ['Measuring vital signs on a stable client', 'Teaching insulin self-injection', 'Assessing a new admission', 'Evaluating the response to pain medication'], [0], 'Assessment, teaching and evaluation stay with the RN. Routine tasks on stable clients can be delegated.'],
+  ['nclex', 'Pharmacology', 'mcq', 'What is the antidote for heparin overdose?', ['Protamine sulfate', 'Vitamin K', 'Naloxone', 'Flumazenil'], [0], 'Protamine reverses heparin. Vitamin K reverses warfarin; naloxone = opioids; flumazenil = benzodiazepines.'],
+  ['oph', 'Procedures & Surgery', 'mcq', 'A patient with a gas bubble after vitrectomy asks about flying next week. Best response?', ['"You must not fly until your surgeon confirms the gas has absorbed."', '"Flying is fine if you keep your head down."', '"Use your eye drops before take-off and you can fly."', '"Flying is only a problem after silicone oil, not gas."'], [0], 'Gas expands at altitude and can raise IOP dangerously. No flying, high altitude or nitrous oxide until the gas is gone.'],
+  ['oph', 'Diseases', 'mcq', 'Chemical splash to the eye. What is the FIRST action?', ['Irrigate the eye immediately', 'Check visual acuity', 'Apply a pressure patch', 'Wait for the ophthalmologist'], [0], 'Irrigate first (before visual acuity) until pH is neutral. Time = tissue.'],
+  ['oph', 'Diseases', 'sata', 'Which are signs of acute angle-closure glaucoma? Select all that apply.', ['Severe eye pain', 'Halos around lights', 'Nausea and vomiting', 'Painless gradual vision loss', 'Mid-dilated, fixed pupil'], [0, 1, 2, 4], 'Acute angle-closure is sudden and painful. Painless gradual loss fits cataract or open-angle glaucoma.'],
+  ['eng', 'Grammar', 'mcq', 'Choose the correct sentence.', ['The patient has been waiting since 9 a.m.', 'The patient is waiting since 9 a.m.', 'The patient waits since 9 a.m.', 'The patient was waiting since 9 a.m. until now.'], [0], 'Use the present perfect continuous (has been + -ing) with "since" for an action that started in the past and continues now.'],
+  ['eng', 'Grammar', 'mcq', 'She ___ the drops before the exam yesterday.', ['instilled', 'has instilled', 'instills', 'was instill'], [0], '"Yesterday" is a finished time → past simple (instilled).'],
+  ['hi', 'Data Standards', 'mcq', 'Which standard is designed to exchange health data through web APIs?', ['HL7 FHIR', 'ICD-10', 'LOINC', 'SNOMED CT'], [0], 'FHIR uses web APIs and "resources". ICD-10 codes diagnoses, LOINC identifies lab tests, SNOMED CT is clinical terminology.'],
+  ['hi', 'Machine Learning', 'tf', 'High sensitivity means the test rarely misses people who have the disease.', ['True', 'False'], [0], 'Sensitivity = true positives ÷ all who have the disease. High sensitivity → few false negatives.']];
+function seedQuestions() { return QSEED.map(([c, m, type, q, options, correct, rationale]) => ({ id: 'q' + uid(), course: c, mod: modByName(c, m), type, q, options, correct, rationale, seen: 0, right: 0, created: Date.now() })); }

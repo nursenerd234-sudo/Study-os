@@ -5,7 +5,14 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const dkey = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 const today = () => dkey(new Date());
-const tag = t => TRACKS[t] ? `<span class="tag t-${t}">${TRACKS[t]}</span>` : `<span class="tag t-all">All tracks</span>`;
+const PALETTE = ['#30a8bf', '#5856d6', '#f08a00', '#af52de', '#ff2d55', '#34c759', '#007aff', '#a2845e', '#5ac8fa', '#ff9500'];
+const course = id => (S && S.courses ? S.courses.find(c => c.id === id) : null);
+const courseName = id => (course(id) || {}).name || 'General';
+const modOf = (cid, mid) => { const c = course(cid); return c ? c.modules.find(m => m.id === mid) : null; };
+const modName = (cid, mid) => (modOf(cid, mid) || {}).name || 'General';
+const tag = id => { const c = course(id); return c ? `<span class="tag" style="background:${c.color}">${esc(c.name)}</span>` : (id === 'all' ? `<span class="tag t-all">All courses</span>` : `<span class="tag t-all">General</span>`); };
+const courseOpts = sel => S.courses.map(c => `<option value="${c.id}" ${c.id === sel ? 'selected' : ''}>${esc(c.icon + ' ' + c.name)}</option>`).join('');
+const modOpts = (cid, sel) => `<option value="">General</option>` + ((course(cid) || { modules: [] }).modules.map(m => `<option value="${m.id}" ${m.id === sel ? 'selected' : ''}>${esc(m.name)}</option>`).join(''));
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
@@ -121,8 +128,14 @@ function downscale(file, max = 1800) {
 function blobToDataURL(b) { return new Promise(r => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(b); }); }
 async function dataURLToBlob(u) { const r = await fetch(u); return r.blob(); }
 
-/* sanitize editor HTML to a small whitelist */
-const OK_TAGS = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE', 'BR', 'CODE', 'MARK', 'A', 'SPAN', 'DIV', 'P']);
+/* sanitize editor HTML to a whitelist (keeps Word-style colours, fonts, sizes) */
+const OK_TAGS = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE', 'BR', 'CODE', 'MARK', 'A', 'SPAN', 'FONT', 'DIV', 'P', 'SUB', 'SUP']);
+const OK_STYLE = { 'color': /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\)|[a-z]+)$/i, 'background-color': /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\)|[a-z]+)$/i, 'font-family': /^[\w\s,"'-]+$/, 'font-size': /^(\d{1,2}(\.\d+)?px|x*-?(small|large)|medium)$/, 'font-weight': /^(bold|[4-9]00)$/, 'font-style': /^italic$/, 'text-decoration-line': /^[a-z -]+$/, 'text-decoration': /^[a-z -]+$/ };
+function cleanStyle(el) {
+  const out = [];
+  for (const k in OK_STYLE) { const v = el.style.getPropertyValue(k).trim(); if (v && OK_STYLE[k].test(v)) out.push(k + ':' + v); }
+  return out.join(';');
+}
 function clean(html) {
   const doc = new DOMParser().parseFromString('<div>' + (html || '') + '</div>', 'text/html');
   const walk = n => {
@@ -132,14 +145,17 @@ function clean(html) {
         if (c.nodeType === 1 && !['SCRIPT', 'STYLE', 'IFRAME', 'OBJECT'].includes(c.tagName)) { walk(c); c.replaceWith(...c.childNodes); } else c.remove();
         return;
       }
+      if (c.tagName === 'FONT') { const sp = doc.createElement('span'); if (c.getAttribute('color')) sp.style.color = c.getAttribute('color'); if (c.getAttribute('face')) sp.style.fontFamily = c.getAttribute('face'); sp.append(...c.childNodes); c.replaceWith(sp); walk(sp); finishSpan(sp); return; }
       const href = c.tagName === 'A' ? c.getAttribute('href') : null;
+      const st = c.tagName === 'SPAN' ? cleanStyle(c) : '';
       [...c.attributes].forEach(a => c.removeAttribute(a.name));
       if (href && /^https?:\/\//i.test(href)) { c.setAttribute('href', href); c.setAttribute('target', '_blank'); c.setAttribute('rel', 'noopener'); }
-      if (c.tagName === 'DIV' || c.tagName === 'P') { walk(c); c.before(document.createElement('br')); c.replaceWith(...c.childNodes); return; }
-      if (c.tagName === 'SPAN') { walk(c); c.replaceWith(...c.childNodes); return; }
+      if (c.tagName === 'DIV' || c.tagName === 'P') { walk(c); c.before(doc.createElement('br')); c.replaceWith(...c.childNodes); return; }
       walk(c);
+      if (c.tagName === 'SPAN') { if (st) c.setAttribute('style', st); else c.replaceWith(...c.childNodes); }
     });
   };
+  function finishSpan(sp) { const st = cleanStyle(sp); [...sp.attributes].forEach(a => sp.removeAttribute(a.name)); if (st) sp.setAttribute('style', st); else sp.replaceWith(...sp.childNodes); }
   const root = doc.body.firstChild; walk(root);
   return root.innerHTML.replace(/^(<br>)+/, '');
 }
@@ -149,3 +165,39 @@ const plain = html => { const d = document.createElement('div'); d.innerHTML = h
 const V = {};
 let view = 'today';
 const app = document.getElementById('app');
+
+/* small popover anchored to an element */
+function popover(anchor, html, onClick) {
+  closeMenu();
+  const r = anchor.getBoundingClientRect(), m = document.createElement('div');
+  m.className = 'menu pop'; m.id = 'menu'; m.innerHTML = html;
+  document.body.appendChild(m);
+  const mr = m.getBoundingClientRect();
+  m.style.left = Math.max(8, Math.min(r.left, innerWidth - mr.width - 8)) + 'px';
+  m.style.top = (r.bottom + mr.height > innerHeight - 70 ? Math.max(8, r.top - mr.height - 6) : r.bottom + 6) + 'px';
+  m.addEventListener('mousedown', e => e.preventDefault()); m.addEventListener('pointerdown', e => { if (!e.target.closest('input,select')) e.preventDefault(); });
+  m.addEventListener('click', e => onClick(e, m));
+  setTimeout(() => document.addEventListener('pointerdown', out, true), 0);
+  function out(e) { if (!m.contains(e.target)) closeMenu(); }
+  m._outside = out; return m;
+}
+
+/* theme */
+function applyTheme() {
+  const t = (S && S.settings.theme) || 'auto', root = document.documentElement;
+  if (t === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', t);
+}
+
+/* print / PDF */
+async function printHTML(title, html) {
+  let a = $('#printArea'); if (a) a.remove();
+  a = document.createElement('div'); a.id = 'printArea';
+  a.innerHTML = html; document.body.appendChild(a);
+  await Promise.all($$('img', a).map(im => im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; })));
+  const old = document.title; document.title = title;
+  document.body.classList.add('printing');
+  const done = () => { document.body.classList.remove('printing'); a.remove(); document.title = old; removeEventListener('afterprint', done); };
+  addEventListener('afterprint', done);
+  try { window.print(); } catch (e) { toast('Printing is not available here'); done(); }
+  setTimeout(() => { if (document.body.classList.contains('printing') && !matchMedia('print').matches) {} }, 1000);
+}

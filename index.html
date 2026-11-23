@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0d3b3a">
+<title>Karim Study OS</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+/* VOICE: calm, clinical, encouraging — one thing at a time.
+   IDEA: a nurse's pocket clipboard — today's sheet on top, everything else one tap away.
+   PICTURE: the Today sheet itself: one big Start button, the card in session, task checklist.
+   COLOUR+TYPE: deep teal ink on warm paper; one accent per track (teal, indigo, coral, violet); system sans.
+   LAYOUT: single column up to 760px, bottom tab bar, large touch targets for a tablet. */
+:root{color-scheme:light dark;
+--bg:light-dark(#f6f4ee,#0b1716);--card:light-dark(#ffffff,#132322);--ink:light-dark(#0d2b2a,#e6efed);
+--muted:light-dark(#5b6f6d,#9db2af);--line:light-dark(#e2ded3,#22393a);--main:light-dark(#0d3b3a,#5fd0c0);
+--oph:#0f8b7d;--nclex:#4057c9;--eng:#e0603a;--hi:#8a4fd0;--ok:#1d8a4b;--bad:#c4372f}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow-x:clip;padding-bottom:84px}
+main{max-width:760px;margin:0 auto;padding:20px max(4vw,14px)}
+h1{font-size:30px;line-height:1.1;margin:4px 0 2px}h2{font-size:21px;margin:22px 0 10px}
+.sub{color:var(--muted);font-size:15px;margin:0}
+.box{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin:12px 0}
+button,select,input,textarea{font:inherit;font-size:16px;color:inherit}
+button{min-height:46px;border-radius:12px;border:1px solid var(--line);background:var(--card);padding:0 16px;cursor:pointer}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid var(--main);outline-offset:2px}
+.primary{background:var(--main);color:var(--bg);border:0;font-weight:650}
+.big{width:100%;min-height:64px;font-size:20px;border-radius:16px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.row>*{flex:1 1 140px}
+input,select,textarea{width:100%;min-height:46px;border:1px solid var(--line);border-radius:12px;background:var(--bg);padding:10px 12px}
+textarea{min-height:90px;resize:vertical}
+label{display:block;font-size:14px;color:var(--muted);margin:10px 0 4px}
+.tag{display:inline-block;font-size:13px;font-weight:650;padding:2px 10px;border-radius:99px;color:#fff;white-space:nowrap}
+.t-oph{background:var(--oph)}.t-nclex{background:var(--nclex)}.t-eng{background:var(--eng)}.t-hi{background:var(--hi)}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center}
+.stat b{display:block;font-size:28px;line-height:1.1}.stat span{font-size:13px;color:var(--muted)}
+.task{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-top:1px solid var(--line)}
+.task:first-child{border-top:0}.task input{width:26px;min-height:26px;height:26px;flex:none;margin-top:2px;accent-color:var(--main)}
+.task.done .txt{text-decoration:line-through;color:var(--muted)}
+.txt small{display:block;color:var(--muted);font-size:14px}
+nav{position:fixed;inset:auto 0 0 0;background:var(--card);border-top:1px solid var(--line);display:flex;justify-content:center;padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;max-width:150px;border:0;border-radius:0;background:none;min-height:64px;font-size:14px;color:var(--muted)}
+nav button.on{color:var(--main);font-weight:700;box-shadow:inset 0 3px 0 var(--main)}
+.flash{font-size:24px;line-height:1.4;min-height:150px;display:flex;align-items:center;justify-content:center;text-align:center;padding:20px;white-space:pre-wrap}
+.answer{border-top:2px dashed var(--line);font-size:20px}
+.cz{background:light-dark(#fde9b7,#5a4510);border-radius:6px;padding:0 4px}
+.grade{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grade button{min-height:70px;font-size:19px;font-weight:650;color:#fff;border:0}
+.forgot{background:var(--bad)}.got{background:var(--ok)}
+.bar{height:10px;border-radius:99px;background:var(--line);overflow:hidden}.bar i{display:block;height:100%;background:var(--main)}
+.chart{display:flex;gap:4px;align-items:flex-end;height:120px}.chart div{flex:1;background:var(--main);border-radius:4px 4px 0 0;min-height:2px}
+.list .it{padding:12px 0;border-top:1px solid var(--line)}.list .it:first-child{border-top:0}
+.muted{color:var(--muted)}.right{text-align:right}.small{font-size:14px}
+.timer{font-size:44px;font-weight:700;text-align:center;font-variant-numeric:tabular-nums}
+.toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:12px;font-size:15px;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+.seg{display:flex;gap:6px;flex-wrap:wrap}.seg button{flex:1 1 auto;min-height:40px;font-size:14px}.seg button.on{background:var(--main);color:var(--bg);border-color:transparent}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+@media(max-width:480px){.stats{grid-template-columns:repeat(3,minmax(0,1fr))}.stat b{font-size:22px}h1{font-size:26px}}
+</style>
+</head>
+<body>
+<main id="app"><p class="muted">Loading…</p></main>
+<nav id="nav">
+  <button data-v="today">Today</button>
+  <button data-v="cards">Cards</button>
+  <button data-v="capture">Capture</button>
+  <button data-v="plan">Plan</button>
+  <button data-v="progress">Progress</button>
+</nav>
+<div class="toast" id="toast"></div>
+<input type="file" id="importFile" accept="application/json" hidden>
+<script>
+{
+/* ================= DATA & STORAGE ================= */
+const KEY='studyos_v1', DAY=86400000;
+const TRACKS={oph:'Ophthalmology',nclex:'NCLEX',eng:'English',hi:'Health Informatics & AI'};
+const tag=t=>TRACKS[t]?`<span class="tag t-${t}">${TRACKS[t]}</span>`:`<span class="tag" style="background:var(--main);color:var(--bg)">All tracks</span>`;
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const dkey=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+
+let S=null, memOnly=false;
+function load(){try{const r=localStorage.getItem(KEY);if(r)return JSON.parse(r)}catch(e){memOnly=true}return null}
+function save(){if(memOnly)return;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){memOnly=true;toast('Storage unavailable — export a backup!')}}
+function log(){const k=today();S.logs[k]=S.logs[k]||{reviews:0,news:0,min:{},tasks:{}};return S.logs[k]}
+
+/* ================= FSRS-4.5 (two buttons: Forgot=1, Got it=3) ================= */
+const W=[0.4872,1.4003,3.7145,13.8206,5.1618,1.2298,0.8975,0.031,1.6474,0.1367,1.0461,2.1072,0.0793,0.3246,1.587,0.2272,2.8755];
+const DECAY=-0.5, FACTOR=19/81, RET=0.9;
+const clampD=d=>Math.min(10,Math.max(1,d));
+const D0=g=>clampD(W[4]-(g-3)*W[5]);
+const R=(t,s)=>Math.pow(1+FACTOR*t/s,DECAY);
+const ivl=s=>Math.max(1,Math.round(s/FACTOR*(Math.pow(RET,1/DECAY)-1)));
+function nextD(d,g){const d1=d-W[6]*(g-3);return clampD(W[7]*D0(4)+(1-W[7])*d1)}
+function sRecall(d,s,r){return s*(Math.exp(W[8])*(11-d)*Math.pow(s,-W[9])*(Math.exp(W[10]*(1-r))-1)+1)}
+function sForget(d,s,r){return Math.min(s,W[11]*Math.pow(d,-W[12])*(Math.pow(s+1,W[13])-1)*Math.exp(W[14]*(1-r)))}
+/* returns true if card should be shown again in this session */
+function grade(c,g){
+  const now=Date.now(), L=log();
+  if(c.state==='new'){
+    L.news++;c.s=W[g-1];c.d=D0(g);c.reps=1;c.last=now;
+    if(g===1){c.state='learning';c.due=now;return true}
+    c.state='review';c.due=now+DAY;return false;
+  }
+  if(c.state==='learning'){ /* relearning step: Got it schedules with current stability */
+    if(g===1){c.due=now;return true}
+    c.state='review';c.last=now;c.due=now+ivl(c.s)*DAY;return false;
+  }
+  const t=Math.max(0,(now-(c.last||now))/DAY), r=R(t,c.s||1);
+  L.reviews++;c.reps=(c.reps||0)+1;
+  if(g===1){c.lapses=(c.lapses||0)+1;c.s=sForget(c.d,c.s,r);c.d=nextD(c.d,1);c.state='learning';c.last=now;c.due=now;return true}
+  c.s=sRecall(c.d,c.s,r);c.d=nextD(c.d,3);c.last=now;c.due=now+ivl(c.s)*DAY;return false;
+}
+
+/* ================= PLANS ================= */
+const NCLEX_P1=['Test plan, Clinical Judgment Model, NGN item types','Prioritization: ABCs, Maslow, acute vs chronic','Safety & infection prevention','Fundamentals of care','Pharmacology basics: suffixes, high-alert meds','Dosage calculation + antidotes','Lab values & vital signs','Delegation, assignment, legal/ethical','Pharm by class I: cardiac, anticoagulants, diuretics, insulin','Pharm by class II: psych, antibiotics, steroids, opioids, respiratory','Health promotion, growth & development, communication','Review + 75-question checkpoint'];
+const NCLEX_P2=['Cardiovascular','Cardiovascular (ECG, shock)','Respiratory','Fluids, electrolytes, acid-base','Renal & urinary','Endocrine','Neuro','GI & liver','Hematology & oncology','Immune, infectious, musculoskeletal, skin','Maternity & newborn','Maternity & newborn (labor, postpartum)','Pediatrics','Pediatrics (peds dosing, congenital)','Mental health','Leadership, priorities, delegation','Buffer week + 100-question checkpoint'];
+function weeksSince(iso){return Math.floor((Date.now()-new Date(iso+'T00:00:00').getTime())/(7*DAY))}
+function nclexToday(){
+  const d=today();
+  if(d<'2027-01-03')return{phase:'Phase 0 · Setup',task:'10–15 practice questions + read the 2026 NCLEX-RN test plan',detail:'Build habits. Baseline test this month.'};
+  if(d<'2027-04-04'){const w=Math.min(11,weeksSince('2027-01-03'));return{phase:'Phase 1 · Foundation · Week '+(w+1),task:'15–25 untimed questions + read rationales',detail:'Topic: '+NCLEX_P1[w]}}
+  if(d<'2027-08-01'){const w=Math.min(16,weeksSince('2027-04-04'));return{phase:'Phase 2 · System review · Week '+(w+1),task:'30–50 questions on this system',detail:'System: '+NCLEX_P2[w]}}
+  if(d<'2027-10-15')return{phase:'Phase 3 · Question bank',task:'75 timed mixed questions + full review',detail:'Readiness assessment every 2 weeks.'};
+  return{phase:'Phase 4 · Final readiness',task:'75–100 questions on your weakest topics',detail:'Check your error log top 5.'};
+}
+const OPH=[
+ ['Eye anatomy & how the eye works','Observe 10 slit-lamp exams; name each structure.'],
+ ['Clinic basics: VA, pupils, IOP','Do visual acuities; assist IOP measurements.'],
+ ['Imaging: OCT, fundus photos, visual fields','Assist imaging at the research center.'],
+ ['Meds I: dilating drops, anesthetics, fluorescein','Learn where each drop is stored; check cap colors.'],
+ ['Meds II: glaucoma, steroids, NSAIDs, antibiotics, anti-VEGF','Teach drop technique to a patient (supervised).'],
+ ['Conditions I: cataract & glaucoma','Follow a cataract patient clinic → post-op day 1.'],
+ ['Conditions II: retina (DR, AMD, RD, CRAO)','Assist injection lists; look at DME/AMD OCTs.'],
+ ['Conditions III: cornea, uveitis, trauma, emergencies','Practice the eye irrigation set-up.'],
+ ['OR I: sterile technique, microscope, cataract surgery','Scrub/observe cataract cases.'],
+ ['OR II: vitrectomy, trabeculectomy, injections, lasers','Observe a vitrectomy and a laser session.'],
+ ['Sterilization & infection prevention','Spend time with instrument reprocessing.'],
+ ['Quality, safety, workflow & GCP research','Observe time-outs; learn research SOPs.']];
+const HI=[
+ ['What is health informatics? EHR, clinical data, workflows','Write 5 lines: where does data get created in your clinic?'],
+ ['Health data standards: ICD-10, SNOMED CT, LOINC, RxNorm','Find the ICD-10 code for primary open-angle glaucoma.'],
+ ['Interoperability: HL7 v2 and FHIR basics','Read the FHIR overview on hl7.org; name 5 FHIR resources.'],
+ ['Privacy & security: HIPAA, consent, de-identification','List the identifiers you would remove from a dataset.'],
+ ['Python basics I (Kaggle Learn: Python)','Finish 2 Kaggle Learn Python lessons.'],
+ ['Python II: pandas (Kaggle Learn: Pandas)','Load a small CSV and count rows by category.'],
+ ['Data visualization + basic statistics','Plot one chart from your CSV.'],
+ ['Intro to machine learning (Kaggle Learn)','Finish the first Intro to ML lessons.'],
+ ['Evaluating models: sensitivity, specificity, PPV, AUC, bias','Calculate sensitivity/specificity from a 2×2 table.'],
+ ['AI in ophthalmology: diabetic retinopathy screening, OCT AI','Read one EyeWiki/review article on AI in DR screening.'],
+ ['Clinical decision support, AI ethics, regulation (FDA SaMD)','Write 5 risks of using AI in an eye clinic.'],
+ ['Mini project: one-page case study on AI in your clinic','Draft it in English; this goes in your CV/portfolio.']];
+const ENG=[ /* by weekday 0=Sun */
+ ['Listening 20 min','Nursing YouTube / podcast on your commute. Note 5 new words → Capture.'],
+ ['Shadowing 15 min','Repeat a 1-minute clip sentence by sentence.'],
+ ['Speaking: record a 2-min SBAR','Record yourself handing off a patient, listen back once.'],
+ ['Read rationales out loud 15 min','Read today\'s NCLEX rationales aloud for pronunciation.'],
+ ['Writing 20 min','One short paragraph (OET letter / IELTS task from June 2027).'],
+ ['Reading 30 min','A long article or a mock reading test.'],
+ ['Speaking session','Tutor or speaking partner (iTalki / Cambly / friend).']];
+function wk(n){return Math.max(0,Math.min(n-1,weeksSince(S.settings.start)))}
+function todayTasks(){
+  const n=nclexToday(), o=OPH[wk(12)], h=HI[wk(12)], e=ENG[new Date().getDay()];
+  return [
+   {id:'cards',tr:'all',t:'Review your cards',d:'Start session above',auto:true},
+   {id:'nclex',tr:'nclex',t:n.task,d:n.phase+' — '+n.detail},
+   {id:'eng',tr:'eng',t:e[0],d:e[1]},
+   {id:'oph',tr:'oph',t:'Ophthalmology: '+o[0],d:'Week '+(wk(12)+1)+' · At work: '+o[1]},
+   {id:'hi',tr:'hi',t:'20 min: '+h[0],d:'Week '+(wk(12)+1)+' · '+h[1]}];
+}
+
+/* ================= SEED CARDS ================= */
+const SEED={
+oph:[
+['Eye drop cap color RED means?','Mydriatic / cycloplegic (dilating): tropicamide, phenylephrine, cyclopentolate, atropine'],
+['Cap color GREEN means?','Miotic (constricts pupil) — pilocarpine'],
+['Cap color YELLOW or BLUE means?','Beta-blocker — timolol'],
+['Cap color PURPLE means?','Alpha agonist — brimonidine'],
+['Cap color ORANGE means?','Carbonic anhydrase inhibitor — dorzolamide'],
+['Cap color TURQUOISE means?','Prostaglandin analog — latanoprost'],
+['Cap colors PINK / GRAY / TAN mean?','Pink = steroid · Gray = NSAID · Tan = antibiotic'],
+['Acute angle-closure: sudden severe pain, halos, nausea, hazy cornea and a [[mid-dilated, fixed]] pupil.',''],
+['First action in a chemical eye injury?','Irrigate immediately (before visual acuity) until pH is neutral; sweep the fornices.'],
+['Open globe injury — nursing actions?','Rigid shield with no pressure, no drops, no IOP check, NPO, antiemetic, tetanus status.'],
+['Sudden painless severe vision loss in one eye + cherry-red spot?','Central retinal artery occlusion — an eye stroke. Emergency.'],
+['3 symptoms of retinal detachment?','Flashes, new floaters, curtain/shadow over vision.'],
+['RSVP warning signs after surgery or injection?','Redness, Sensitivity to light, Vision loss, Pain → endophthalmitis risk, come the same day.'],
+['Gas bubble in the eye after vitrectomy: avoid?','Flying, high altitude and nitrous oxide anaesthesia until the gas is gone (gas expands → IOP rises).'],
+['Latanoprost side effects to warn about?','Permanent iris darkening, longer lashes, red eye, periorbital fat loss.'],
+['Timolol drops — ask about which conditions first?','Asthma/COPD, bradycardia, heart block, heart failure.'],
+['Brimonidine is contraindicated in [[infants and young children]] (CNS depression, apnea).',''],
+['Prednisolone acetate drops: key teaching?','Suspension → shake well; taper, never stop suddenly; can raise IOP.'],
+['Why never send topical anesthetic drops home?','Repeated use damages the cornea.'],
+['Punctal occlusion: how and why?','Press the inner corner of the eye 1–2 min after a drop → less systemic absorption.'],
+['Wait [[5 minutes]] between two different eye drops.',''],
+['What is TASS?','Toxic anterior segment syndrome: sterile inflammation 12–48 h after cataract surgery, usually from instrument residue.'],
+['Spaulding class of a tonometer tip?','Semi-critical → at least high-level disinfection (or disposable tips).'],
+['Atropine is contraindicated in [[angle-closure glaucoma]].',''],
+['Hyphema nursing care?','Head elevated 30–45°, shield, avoid aspirin/NSAIDs, watch for rebleed and high IOP.'],
+['Anti-VEGF injections treat?','Wet AMD, diabetic macular edema, retinal vein occlusion.'],
+['Normal IOP range (approx.)?','About 10–21 mmHg.'],
+['After IV fluorescein, warn the patient about?','Yellow skin for hours and orange urine for up to ~48 h; nausea possible.'],
+['Time-out in cataract surgery must confirm?','Patient, procedure, operative eye, IOL model and power (read aloud).']],
+nclex:[
+['Sodium normal range?','135–145 mEq/L (ranges vary slightly by book — match yours)'],
+['Potassium normal range?','3.5–5.0 mEq/L'],
+['Magnesium normal range?','About 1.3–2.1 mEq/L (check your book)'],
+['ABG normals: pH / PaCO2 / HCO3?','pH 7.35–7.45 · PaCO2 35–45 mmHg · HCO3 22–26 mEq/L'],
+['Platelets normal?','150,000–400,000 /mm³'],
+['WBC normal?','5,000–10,000 /mm³'],
+['Therapeutic INR on warfarin (most indications)?','2–3'],
+['Therapeutic digoxin level?','0.5–2.0 ng/mL (check toxicity signs: nausea, vision changes, bradycardia)'],
+['Therapeutic lithium level (maintenance)?','About 0.6–1.2 mEq/L'],
+['Antidote: heparin','Protamine sulfate'],
+['Antidote: warfarin','Vitamin K'],
+['Antidote: opioids','Naloxone'],
+['Antidote: benzodiazepines','Flumazenil'],
+['Antidote: acetaminophen','Acetylcysteine'],
+['Antidote: magnesium sulfate toxicity','Calcium gluconate'],
+['Antidote: digoxin toxicity','Digoxin immune fab'],
+['The 6 steps of the NCSBN Clinical Judgment Model?','Recognize cues → Analyze cues → Prioritize hypotheses → Generate solutions → Take action → Evaluate outcomes'],
+['Airborne precautions: diseases + PPE?','TB, measles, varicella → N95 respirator, negative-pressure room'],
+['Droplet precautions: diseases + PPE?','Influenza, pertussis, meningococcal meningitis → surgical mask within close range'],
+['Contact precautions + C. difficile hand hygiene?','Gown + gloves; for C. diff wash with soap and water (alcohol gel does not kill spores)'],
+['PPE donning order?','Gown → mask/respirator → goggles/face shield → gloves'],
+['PPE doffing order (CDC example)?','Gloves → goggles/face shield → gown → mask/respirator (then hand hygiene)'],
+['What can NOT be delegated to UAP?','Assessment, teaching, evaluation, care of unstable clients (the nursing process).'],
+['Prioritization frameworks in order of use?','ABCs → Maslow → acute over chronic → actual over potential → unstable over stable'],
+['Drug suffix -olol?','Beta-blocker (e.g., metoprolol)'],
+['Drug suffix -pril?','ACE inhibitor (e.g., lisinopril) — watch dry cough, angioedema, high K'],
+['Drug suffix -sartan?','ARB (e.g., losartan)'],
+['Drug suffix -statin?','HMG-CoA reductase inhibitor — watch muscle pain, liver enzymes'],
+['Drug suffix -azole (e.g., omeprazole)?','Proton pump inhibitor (-prazole); other -azoles are antifungals'],
+['Hypokalemia ECG sign?','U waves, flat T waves']],
+eng:[
+['instill (verb)','To put drops into something. "Instill one drop in the right eye twice a day."'],
+['photophobia','Sensitivity to light. "The patient reports photophobia since yesterday."'],
+['adherence','Following the treatment plan. "Adherence to glaucoma drops is poor."'],
+['taper (verb)','To reduce a dose slowly. "We will taper the steroid drops over four weeks."'],
+['contraindicated','Should not be used. "Timolol is contraindicated in severe asthma."'],
+['escalate (verb)','To report up to a senior. "I escalated the high IOP to the doctor."'],
+['deteriorate (verb)','To get worse. "His vision deteriorated overnight."'],
+['reassure (verb)','To make someone less worried. "I reassured her that the floaters are expected."'],
+['SBAR','Situation, Background, Assessment, Recommendation — a structured handoff.'],
+['"Can you rate your pain from 0 to 10?"','Standard pain assessment question.'],
+['"You may feel a slight touch on your eye."','Phrase used before tonometry.'],
+['"Please keep looking at the light."','Phrase used during eye exams and imaging.'],
+['informed consent','Agreement after understanding risks, benefits and alternatives.'],
+['adverse event','Any harmful or unwanted event during treatment or a study.'],
+['concise','Short and clear. "Keep your handoff concise."'],
+['subsequently','After that. "Subsequently, the pressure decreased."'],
+['adequate','Enough. "Is the pain control adequate?"'],
+['blurred vision','Vision that is not sharp. "Blurred vision is normal for a few hours after dilation."'],
+['to be discharged','To leave the hospital or clinic officially. "She will be discharged after the check."'],
+['follow-up appointment','The next scheduled visit. "Your follow-up appointment is tomorrow at 9."']],
+hi:[
+['EHR vs EMR?','EMR = digital chart inside one practice. EHR = shareable record across organizations.'],
+['What is HL7 FHIR?','A standard for exchanging health data through web APIs, built from "resources" (Patient, Observation, Condition…).'],
+['ICD-10 is used for?','Coding diagnoses (and billing/statistics).'],
+['SNOMED CT is used for?','Detailed clinical terminology inside records (findings, procedures, diagnoses).'],
+['LOINC is used for?','Identifying lab tests and clinical observations.'],
+['RxNorm is used for?','Standard names/codes for medications (US).'],
+['Interoperability means?','Different systems can exchange data AND use it correctly.'],
+['HIPAA protects?','Privacy and security of protected health information (PHI) in the US.'],
+['De-identification?','Removing identifiers (name, dates, IDs…) so data cannot be linked to a person.'],
+['Clinical decision support (CDS)?','Tools that give clinicians patient-specific advice at the right time (alerts, order sets, AI predictions).'],
+['Sensitivity?','True positives ÷ all who have the disease — "how many sick people the test catches".'],
+['Specificity?','True negatives ÷ all who do not have the disease — "how many healthy people it correctly clears".'],
+['PPV (positive predictive value)?','True positives ÷ all positive results; depends on disease prevalence.'],
+['AUC (ROC curve)?','How well a model separates classes across all thresholds; 0.5 = chance, 1.0 = perfect.'],
+['Overfitting?','Model learns the training data too well (noise included) and performs worse on new data.'],
+['Train / validation / test sets?','Train = learn, validation = tune, test = final unbiased check (never used during training).'],
+['Supervised vs unsupervised learning?','Supervised uses labelled examples; unsupervised finds patterns without labels.'],
+['Algorithmic bias in healthcare AI?','The model works worse for some groups because of unrepresentative data or design.'],
+['First FDA-authorized autonomous AI diagnostic system (2018)?','IDx-DR (now LumineticsCore) — diabetic retinopathy screening from retinal photos.'],
+['SaMD?','Software as a Medical Device — software (incl. AI) intended for medical purposes, regulated as a device.']]};
+function seedCards(){
+  const out=[];
+  for(const tr in SEED)for(const [f,b] of SEED[tr])out.push(newCard(tr,f,b,tr==='eng'));
+  return out;
+}
+function newCard(tr,front,back,speak){return{id:uid(),tr,front,back,speak:!!speak,state:'new',s:0,d:0,due:0,reps:0,lapses:0,last:0,created:Date.now(),susp:false}}
+
+/* ================= INIT ================= */
+function init(){
+  S=load();
+  if(!S){S={v:1,cards:seedCards(),inbox:[],errors:[],blocks:[],logs:{},settings:{newPerDay:12,maxRev:60,start:today(),easy:false}};save()}
+  try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
+  if('serviceWorker' in navigator&&location.protocol==='https:'){navigator.serviceWorker.register('sw.js').catch(()=>{})}
+  go(location.hash.slice(1)||'today');
+}
+
+/* ================= HELPERS ================= */
+let toastT;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2200)}
+function streak(){let n=0,d=new Date();const act=k=>{const l=S.logs[k];return l&&(l.reviews+l.news>0||Object.keys(l.tasks).length>0)};if(!act(dkey(d)))d.setDate(d.getDate()-1);while(act(dkey(d))){n++;d.setDate(d.getDate()-1)}return n}
+function dueCards(){
+  const now=Date.now(), L=log(), easy=S.settings.easy;
+  const live=S.cards.filter(c=>!c.susp);
+  let rev=live.filter(c=>c.state!=='new'&&c.due<=now).sort((a,b)=>a.due-b.due);
+  let nw=live.filter(c=>c.state==='new');
+  const revCap=Math.max(0,(easy?10:S.settings.maxRev)-L.reviews), newCap=Math.max(0,(easy?3:S.settings.newPerDay)-L.news);
+  rev=rev.slice(0,revCap);
+  /* interleave new cards across tracks */
+  const byTr={};nw.forEach(c=>(byTr[c.tr]=byTr[c.tr]||[]).push(c));
+  const mix=[];let added=true;while(mix.length<newCap&&added){added=false;for(const t in byTr){if(byTr[t].length&&mix.length<newCap){mix.push(byTr[t].shift());added=true}}}
+  return {rev,nw:mix};
+}
+function renderCloze(txt,reveal){return esc(txt).replace(/\[\[(.+?)\]\]/g,(m,x)=>reveal?`<span class="cz">${x}</span>`:'<span class="cz">[ … ]</span>')}
+function speak(t){try{const u=new SpeechSynthesisUtterance(t.replace(/\[\[|\]\]/g,'').replace(/["()]/g,''));u.lang='en-US';u.rate=.9;speechSynthesis.cancel();speechSynthesis.speak(u)}catch(e){toast('Voice not available')}}
+
+/* ================= VIEWS ================= */
+const app=document.getElementById('app');let view='today';
+function go(v){view=v;if(location.hash.slice(1)!==v)history.replaceState(null,'','#'+v);document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));(V[v]||V.today)();window.scrollTo(0,0)}
+const V={};
+
+V.today=()=>{
+  const {rev,nw}=dueCards(), L=log(), tasks=todayTasks(), easy=S.settings.easy;
+  const shown=easy?tasks.slice(0,2):tasks;
+  const n=rev.length+nw.length;
+  const d=new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
+  app.innerHTML=`
+  <p class="sub">${d}</p><h1>${n?'Ready when you are, Karim.':'Cards done for today ✓'}</h1>
+  <div class="stats" style="margin-top:14px">
+    <div class="stat"><b>${streak()}</b><span>day streak</span></div>
+    <div class="stat"><b>${n}</b><span>cards waiting</span></div>
+    <div class="stat"><b>${L.reviews+L.news}</b><span>done today</span></div>
+  </div>
+  <div class="box">
+    <button class="primary big" id="start" ${n?'':'disabled style="opacity:.5"'}>${n?`Start session · ${n} cards`:'No cards due'}</button>
+    <div class="row" style="margin-top:12px">
+      <button id="easy" class="${easy?'primary':''}">${easy?'Hard-day mode ON (5 min)':'Hard day? 5-minute mode'}</button>
+    </div>
+  </div>
+  <h2>Today's list</h2>
+  <div class="box">${shown.map(t=>{const done=t.auto?(L.reviews+L.news>0&&!n):!!L.tasks[t.id];
+    return `<div class="task ${done?'done':''}"><input type="checkbox" data-t="${t.id}" ${done?'checked':''} ${t.auto?'disabled':''} aria-label="${esc(t.t)}"><div class="txt">${tag(t.tr)}<br><b>${esc(t.t)}</b><small>${esc(t.d)}</small></div></div>`}).join('')}</div>
+  <h2>Focus timer</h2>
+  <div class="box"><div class="timer" id="tm">25:00</div>
+    <div class="row" style="margin-top:8px"><select id="tmTr">${Object.keys(TRACKS).map(t=>`<option value="${t}">${TRACKS[t]}</option>`).join('')}</select></div>
+    <div class="row" style="margin-top:10px"><button data-min="15">15 min</button><button data-min="25" class="primary">25 min</button><button id="tmStop">Stop</button></div></div>`;
+  document.getElementById('start').onclick=()=>n&&startSession(rev,nw);
+  document.getElementById('easy').onclick=()=>{S.settings.easy=!S.settings.easy;save();V.today()};
+  app.querySelectorAll('[data-t]').forEach(cb=>cb.onchange=()=>{const L=log();if(cb.checked)L.tasks[cb.dataset.t]=1;else delete L.tasks[cb.dataset.t];save();cb.closest('.task').classList.toggle('done',cb.checked)});
+  app.querySelectorAll('[data-min]').forEach(b=>b.onclick=()=>startTimer(+b.dataset.min));
+  document.getElementById('tmStop').onclick=()=>stopTimer(true);
+  paintTimer();
+};
+
+/* ---- focus timer ---- */
+let tmEnd=0,tmLen=0,tmTrack='oph',tmInt=null;
+function startTimer(m){tmLen=m;tmEnd=Date.now()+m*60000;const s=document.getElementById('tmTr');tmTrack=s?s.value:'oph';clearInterval(tmInt);tmInt=setInterval(paintTimer,1000);paintTimer();toast(m+' minutes — one thing only.')}
+function stopTimer(manual){if(!tmEnd)return;const mins=Math.round((tmLen*60000-(tmEnd-Date.now()))/60000);if(mins>0){const L=log();L.min[tmTrack]=(L.min[tmTrack]||0)+mins;save()}tmEnd=0;clearInterval(tmInt);paintTimer();if(manual)toast(mins>0?`Logged ${mins} min`:'Stopped')}
+function paintTimer(){const el=document.getElementById('tm');let left=tmEnd?Math.max(0,tmEnd-Date.now()):25*60000;if(tmEnd&&left===0){const L=log();L.min[tmTrack]=(L.min[tmTrack]||0)+tmLen;save();tmEnd=0;clearInterval(tmInt);toast('Done! Logged '+tmLen+' min 🎉');try{navigator.vibrate&&navigator.vibrate(300)}catch(e){}left=0}
+  if(el){const m=Math.floor(left/60000),s=Math.floor(left%60000/1000);el.textContent=String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')}}
+
+/* ---- review session ---- */
+let Q=[],cur=null,shownAns=false,sessDone=0;
+function startSession(rev,nw){Q=[...rev];nw.forEach((c,i)=>Q.splice(Math.min(Q.length,i*3+1),0,c));sessDone=0;nextCard()}
+function nextCard(){cur=Q.shift();shownAns=false;if(!cur){save();sessionEnd();return}paintCard()}
+function paintCard(){
+  const c=cur, cz=/\[\[.+?\]\]/.test(c.front);
+  const front=cz?renderCloze(c.front,false):esc(c.front);
+  const back=cz?renderCloze(c.front,true)+(c.back?'<br><small class="muted">'+esc(c.back)+'</small>':''):esc(c.back);
+  app.innerHTML=`
+  <div class="row" style="justify-content:space-between"><div style="flex:0 1 auto">${tag(c.tr)} ${c.state==='new'?'<span class="small muted">new</span>':''}</div><div class="right small muted" style="flex:0 1 auto">${sessDone} done · ${Q.length+1} left</div></div>
+  <div class="box"><div class="flash">${shownAns&&cz?'':front}</div>
+   ${shownAns?`<div class="flash answer">${back}</div>`:''}</div>
+  ${c.speak?'<button id="spk" style="width:100%;margin-bottom:12px">🔊 Hear it</button>':''}
+  ${shownAns?`<div class="grade"><button class="forgot" id="g1">Forgot</button><button class="got" id="g3">Got it</button></div>`:`<button class="primary big" id="show">Show answer</button>`}
+  <div class="row" style="margin-top:16px"><button id="edit">Edit card</button><button id="quit">End session</button></div>`;
+  const sp=document.getElementById('spk');if(sp)sp.onclick=()=>speak(c.front);
+  if(shownAns){document.getElementById('g1').onclick=()=>doGrade(1);document.getElementById('g3').onclick=()=>doGrade(3)}
+  else document.getElementById('show').onclick=()=>{shownAns=true;paintCard();if(c.speak)speak(c.front)};
+  document.getElementById('quit').onclick=()=>{save();sessionEnd()};
+  document.getElementById('edit').onclick=()=>editCard(c,()=>paintCard());
+}
+function doGrade(g){const again=grade(cur,g);sessDone++;if(again)Q.splice(Math.min(Q.length,3),0,cur);save();nextCard()}
+function sessionEnd(){
+  app.innerHTML=`<h1>Session done ✓</h1><p class="sub">${sessDone} reviews. Small and daily beats big and rare.</p>
+  <div class="box"><button class="primary big" id="back">Back to Today</button></div>`;
+  document.getElementById('back').onclick=()=>go('today');
+}
+document.addEventListener('keydown',e=>{if(!cur||view!=='today'||!document.querySelector('.flash'))return;if(e.key===' '&&!shownAns){e.preventDefault();shownAns=true;paintCard()}else if(shownAns&&e.key==='1')doGrade(1);else if(shownAns&&(e.key==='2'||e.key==='3'))doGrade(3)});
+
+/* ---- cards ---- */
+let cardFilter='all',cardQ='';
+V.cards=()=>{
+  const list=S.cards.filter(c=>(cardFilter==='all'||c.tr===cardFilter)&&(!cardQ||(c.front+' '+c.back).toLowerCase().includes(cardQ.toLowerCase())));
+  app.innerHTML=`<h1>Cards</h1><p class="sub">${S.cards.length} cards · tip: write a cloze with [[double brackets]]</p>
+  <div class="box">
+   <label for="cTr">Track</label><select id="cTr">${Object.keys(TRACKS).map(t=>`<option value="${t}">${TRACKS[t]}</option>`).join('')}</select>
+   <label for="cF">Front (question, or sentence with [[hidden part]])</label><textarea id="cF"></textarea>
+   <label for="cB">Back (answer — optional for cloze)</label><textarea id="cB"></textarea>
+   <label style="display:flex;gap:10px;align-items:center;color:var(--ink)"><input type="checkbox" id="cS" style="width:24px;min-height:24px"> Speak it (English pronunciation)</label>
+   <button class="primary" id="cAdd" style="width:100%;margin-top:10px">Add card</button></div>
+  <div class="seg" id="seg">${['all',...Object.keys(TRACKS)].map(t=>`<button data-f="${t}" class="${cardFilter===t?'on':''}">${t==='all'?'All':TRACKS[t]}</button>`).join('')}</div>
+  <input id="cQ" placeholder="Search cards" value="${esc(cardQ)}" style="margin-top:10px">
+  <div class="box list">${list.length?list.slice(0,150).map(c=>`<div class="it"><div class="row" style="justify-content:space-between"><div style="flex:1 1 60%">${tag(c.tr)} <span class="small muted">${c.susp?'paused':c.state==='new'?'new':'next: '+new Date(c.due).toLocaleDateString('en-GB')}</span><br>${esc(c.front)}</div><div style="flex:0 0 auto"><button data-e="${c.id}">Edit</button></div></div></div>`).join(''):'<p class="muted">No cards here yet.</p>'}
+  ${list.length>150?`<p class="small muted">Showing 150 of ${list.length}. Use search.</p>`:''}</div>`;
+  const tr=document.getElementById('cTr');if(cardFilter!=='all')tr.value=cardFilter;
+  tr.onchange=()=>{document.getElementById('cS').checked=tr.value==='eng'};
+  document.getElementById('cAdd').onclick=()=>{const f=document.getElementById('cF').value.trim(),b=document.getElementById('cB').value.trim();if(!f){toast('Write the front first');return}if(!b&&!/\[\[.+?\]\]/.test(f)){toast('Add a back, or use [[cloze]]');return}S.cards.push(newCard(tr.value,f,b,document.getElementById('cS').checked));save();toast('Card added');V.cards()};
+  app.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{cardFilter=b.dataset.f;V.cards()});
+  const q=document.getElementById('cQ');q.oninput=()=>{cardQ=q.value;clearTimeout(q._t);q._t=setTimeout(()=>{V.cards();const n=document.getElementById('cQ');n.focus();n.setSelectionRange(n.value.length,n.value.length)},300)};
+  app.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>editCard(S.cards.find(c=>c.id===b.dataset.e),()=>V.cards()));
+};
+function editCard(c,done){
+  app.innerHTML=`<h1>Edit card</h1><div class="box">
+  <label for="eTr">Track</label><select id="eTr">${Object.keys(TRACKS).map(t=>`<option value="${t}" ${c.tr===t?'selected':''}>${TRACKS[t]}</option>`).join('')}</select>
+  <label for="eF">Front</label><textarea id="eF">${esc(c.front)}</textarea>
+  <label for="eB">Back</label><textarea id="eB">${esc(c.back)}</textarea>
+  <label style="display:flex;gap:10px;align-items:center;color:var(--ink)"><input type="checkbox" id="eS" style="width:24px;min-height:24px" ${c.speak?'checked':''}> Speak it</label>
+  <div class="row" style="margin-top:12px"><button class="primary" id="eSave">Save</button><button id="eCancel">Cancel</button></div>
+  <div class="row" style="margin-top:10px"><button id="eSusp">${c.susp?'Resume card':'Pause card'}</button><button id="eReset">Reset progress</button><button id="eDel" style="color:var(--bad)">Delete</button></div></div>`;
+  document.getElementById('eSave').onclick=()=>{c.tr=document.getElementById('eTr').value;c.front=document.getElementById('eF').value.trim()||c.front;c.back=document.getElementById('eB').value.trim();c.speak=document.getElementById('eS').checked;save();toast('Saved');done()};
+  document.getElementById('eCancel').onclick=done;
+  document.getElementById('eSusp').onclick=()=>{c.susp=!c.susp;save();toast(c.susp?'Paused':'Resumed');if(c.susp&&cur===c){nextCard()}else done()};
+  document.getElementById('eReset').onclick=()=>{Object.assign(c,{state:'new',s:0,d:0,due:0,reps:0,lapses:0,last:0});save();toast('Reset to new');done()};
+  const del=document.getElementById('eDel');del.onclick=()=>{if(del.dataset.sure){S.cards=S.cards.filter(x=>x!==c);save();toast('Deleted');if(cur===c){nextCard()}else done()}else{del.dataset.sure=1;del.textContent='Tap again to delete'}};
+}
+
+/* ---- capture: inbox + NCLEX log ---- */
+V.capture=()=>{
+  const blocks=S.blocks.slice(-5).reverse();
+  app.innerHTML=`<h1>Capture</h1><p class="sub">Saw something at work? 10 seconds. Turn it into a card tonight.</p>
+  <div class="box"><label for="iT">Quick note</label><textarea id="iT" placeholder="e.g. Surgeon used trypan blue to stain the capsule — why?"></textarea>
+   <div class="row" style="margin-top:8px"><select id="iTr">${Object.keys(TRACKS).map(t=>`<option value="${t}">${TRACKS[t]}</option>`).join('')}</select><button class="primary" id="iAdd">Save note</button></div></div>
+  <h2>Inbox (${S.inbox.length})</h2>
+  <div class="box list">${S.inbox.length?S.inbox.map(i=>`<div class="it">${tag(i.tr)} <span class="small muted">${new Date(i.created).toLocaleDateString('en-GB')}</span><br>${esc(i.text)}<div class="row" style="margin-top:8px"><button data-mk="${i.id}">Make card</button><button data-rm="${i.id}">Done</button></div></div>`).join(''):'<p class="muted">Empty. Nice.</p>'}</div>
+  <h2>NCLEX question block</h2>
+  <div class="box"><div class="row"><div><label for="bN">Questions done</label><input id="bN" type="number" inputmode="numeric" min="1"></div><div><label for="bC">Correct</label><input id="bC" type="number" inputmode="numeric" min="0"></div></div>
+   <button class="primary" id="bAdd" style="width:100%;margin-top:10px">Log block</button>
+   ${blocks.length?`<div class="list" style="margin-top:10px">${blocks.map(b=>`<div class="it row" style="justify-content:space-between"><span>${b.date}</span><b class="right">${b.c}/${b.n} · ${Math.round(b.c/b.n*100)}%</b></div>`).join('')}</div>`:''}</div>
+  <h2>Missed question → card</h2>
+  <div class="box"><label for="mTop">Topic</label><input id="mTop" placeholder="e.g. Hyperkalemia ECG">
+   <label for="mWhy">Why I missed it</label><select id="mWhy"><option>Knowledge gap</option><option>Misread the question</option><option>Changed my answer</option><option>English / vocabulary</option></select>
+   <label for="mL">The lesson (becomes the card back)</label><textarea id="mL" placeholder="e.g. Peaked T waves = high K. Priority: cardiac monitor."></textarea>
+   <button class="primary" id="mAdd" style="width:100%;margin-top:10px">Save to error log + make card</button></div>`;
+  document.getElementById('iAdd').onclick=()=>{const t=document.getElementById('iT').value.trim();if(!t)return;S.inbox.unshift({id:uid(),text:t,tr:document.getElementById('iTr').value,created:Date.now()});save();toast('Saved to inbox');V.capture()};
+  app.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{S.inbox=S.inbox.filter(i=>i.id!==b.dataset.rm);save();V.capture()});
+  app.querySelectorAll('[data-mk]').forEach(b=>b.onclick=()=>{const i=S.inbox.find(x=>x.id===b.dataset.mk);const c=newCard(i.tr,i.text,'',i.tr==='eng');c.back='(write the answer)';S.cards.push(c);S.inbox=S.inbox.filter(x=>x!==i);save();editCard(c,()=>go('capture'))});
+  document.getElementById('bAdd').onclick=()=>{const n=+document.getElementById('bN').value,c=+document.getElementById('bC').value;if(!n||c<0||c>n){toast('Check the numbers');return}S.blocks.push({date:today(),n,c});const L=log();L.tasks.nclex=1;save();toast(`Logged ${Math.round(c/n*100)}%`);V.capture()};
+  document.getElementById('mAdd').onclick=()=>{const top=document.getElementById('mTop').value.trim(),l=document.getElementById('mL').value.trim(),why=document.getElementById('mWhy').value;if(!top||!l){toast('Add topic and lesson');return}S.errors.push({id:uid(),date:today(),top,why,l});S.cards.push(newCard('nclex',top+' — what is the key point?',l,false));save();toast('Saved + card created');V.capture()};
+};
+
+/* ---- plan ---- */
+V.plan=()=>{
+  const n=nclexToday(), w=wk(12);
+  app.innerHTML=`<h1>The plan</h1><p class="sub">You only need today's step. This is the map.</p>
+  <h2>${tag('nclex')} NCLEX-RN · exam Nov–Dec 2027</h2>
+  <div class="box"><b>${esc(n.phase)}</b><p class="small muted" style="margin:4px 0 10px">${esc(n.detail)}</p>
+   ${[['Phase 0 · Setup','22 Nov – 31 Dec 2026'],['Phase 1 · Foundation','Jan – Mar 2027'],['Phase 2 · System review','Apr – Jul 2027'],['Phase 3 · Question bank','Aug – mid-Oct 2027'],['Phase 4 · Final readiness','mid-Oct – exam']].map(p=>`<div class="task ${n.phase.startsWith(p[0].split(' ·')[0])?'':'muted'}"><div class="txt"><b>${p[0]}</b><small>${p[1]}</small></div></div>`).join('')}</div>
+  <h2>${tag('oph')} Ophthalmology · 12 weeks</h2>
+  <div class="box">${OPH.map((o,i)=>`<div class="task ${i<w?'done':''}"><div class="txt"><b>${i===w?'▶ ':''}Week ${i+1}: ${esc(o[0])}</b><small>${esc(o[1])}</small></div></div>`).join('')}</div>
+  <h2>${tag('hi')} Health Informatics & AI · 12 weeks</h2>
+  <div class="box">${HI.map((o,i)=>`<div class="task ${i<w?'done':''}"><div class="txt"><b>${i===w?'▶ ':''}Week ${i+1}: ${esc(o[0])}</b><small>${esc(o[1])}</small></div></div>`).join('')}</div>
+  <h2>${tag('eng')} English · weekly rhythm</h2>
+  <div class="box">${ENG.map((e,i)=>`<div class="task ${i===new Date().getDay()?'':'muted'}"><div class="txt"><b>${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][i]}: ${esc(e[0])}</b><small>${esc(e[1])}</small></div></div>`).join('')}
+   <p class="small muted">Goal: IELTS 6.5–7 / OET B by Sep 2027.</p></div>`;
+};
+
+/* ---- progress + settings ---- */
+V.progress=()=>{
+  const days=[];for(let i=13;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);const l=S.logs[dkey(d)];days.push({k:dkey(d),v:l?l.reviews+l.news:0})}
+  const mx=Math.max(1,...days.map(d=>d.v));
+  const mature=t=>S.cards.filter(c=>c.tr===t&&c.state==='review'&&c.s>=21).length, total=t=>S.cards.filter(c=>c.tr===t).length;
+  const mins={};Object.values(S.logs).forEach(l=>{for(const t in l.min)mins[t]=(mins[t]||0)+l.min[t]});
+  const last=S.blocks.slice(-5), avg=last.length?Math.round(last.reduce((a,b)=>a+b.c,0)/last.reduce((a,b)=>a+b.n,0)*100):null;
+  const why={};S.errors.forEach(e=>why[e.why]=(why[e.why]||0)+1);
+  app.innerHTML=`<h1>Progress</h1><p class="sub">Look at this once a week, not every day.</p>
+  <div class="stats" style="margin-top:14px"><div class="stat"><b>${streak()}</b><span>day streak</span></div><div class="stat"><b>${avg===null?'–':avg+'%'}</b><span>NCLEX last 5 blocks</span></div><div class="stat"><b>${S.errors.length}</b><span>errors logged</span></div></div>
+  <h2>Cards — last 14 days</h2><div class="box"><div class="chart">${days.map(d=>`<div title="${d.k}: ${d.v}" style="height:${Math.round(d.v/mx*100)}%"></div>`).join('')}</div><div class="row small muted" style="justify-content:space-between;margin-top:6px"><span style="flex:0 0 auto">2 weeks ago</span><span class="right" style="flex:0 0 auto">today</span></div></div>
+  <h2>Long-term memory by track</h2><div class="box">${Object.keys(TRACKS).map(t=>{const m=mature(t),n=total(t);return `<div style="margin:10px 0"><div class="row" style="justify-content:space-between"><span style="flex:1 1 auto">${tag(t)}</span><span class="small muted right" style="flex:0 0 auto">${m}/${n} strong · ${mins[t]||0} focus min</span></div><div class="bar" style="margin-top:6px"><i style="width:${n?Math.round(m/n*100):0}%"></i></div></div>`}).join('')}<p class="small muted">"Strong" = card remembered for 3+ weeks.</p></div>
+  ${S.errors.length?`<h2>Why I miss NCLEX questions</h2><div class="box">${Object.entries(why).map(([k,v])=>`<div class="row" style="justify-content:space-between;margin:6px 0"><span style="flex:1 1 auto">${esc(k)}</span><b class="right" style="flex:0 0 auto">${v}</b></div>`).join('')}</div>`:''}
+  <h2>Settings & backup</h2><div class="box">
+   <div class="row"><div><label for="sN">New cards / day</label><input id="sN" type="number" min="0" value="${S.settings.newPerDay}"></div><div><label for="sR">Max reviews / day</label><input id="sR" type="number" min="5" value="${S.settings.maxRev}"></div></div>
+   <label for="sD">Ophthalmology & Informatics plan start date</label><input id="sD" type="date" value="${S.settings.start}">
+   <button class="primary" id="sSave" style="width:100%;margin-top:10px">Save settings</button>
+   <p class="small muted" style="margin-top:14px">Your data lives only on this device${memOnly?' — <b style="color:var(--bad)">storage is blocked here, export now</b>':''}. Export a backup weekly to Google Drive.</p>
+   <div class="row"><button id="exp">Export backup</button><button id="imp">Import backup</button></div>
+   <textarea id="expBox" style="display:none;margin-top:10px;font-size:12px" readonly></textarea></div>`;
+  document.getElementById('sSave').onclick=()=>{S.settings.newPerDay=Math.max(0,+document.getElementById('sN').value||0);S.settings.maxRev=Math.max(5,+document.getElementById('sR').value||60);S.settings.start=document.getElementById('sD').value||S.settings.start;save();toast('Saved')};
+  document.getElementById('exp').onclick=exportData;
+  document.getElementById('imp').onclick=()=>document.getElementById('importFile').click();
+};
+function exportData(){
+  const txt=JSON.stringify(S), name='studyos-backup-'+today()+'.json';
+  try{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'application/json'}));a.download=name;document.body.appendChild(a);a.click();a.remove();toast('Backup downloaded')}catch(e){}
+  const box=document.getElementById('expBox');if(box){box.style.display='block';box.value=txt;box.select();try{navigator.clipboard.writeText(txt).then(()=>toast('Backup also copied'),()=>{})}catch(e){}}
+}
+document.getElementById('importFile').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.cards||!d.settings)throw 0;S=d;save();toast('Backup restored ('+d.cards.length+' cards)');go('today')}catch(x){toast('Not a valid backup file')}};r.readAsText(f);e.target.value=''};
+
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{if(view==='today'&&cur&&!confirmLeave())return;cur=null;go(b.dataset.v)});
+function confirmLeave(){save();return true}
+window.addEventListener('hashchange',()=>{const v=location.hash.slice(1);if(v&&v!==view&&V[v]){cur=null;go(v)}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)save()});
+init();
+}
+</script>
+</body>
+</html>

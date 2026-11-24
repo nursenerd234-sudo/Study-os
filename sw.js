@@ -1,5 +1,5 @@
 // Study OS offline cache. Network-first (so updates arrive), cache fallback (so it works offline).
-const VERSION = 'studyos-v4';
+const VERSION = 'studyos-v4b';
 const FILES = ['./', './index.html', './styles.css', './store.js', './draw.js', './notes.js', './quiz.js', './courses.js', './planner.js', './shell.js', './data.js', './app.js',
   './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 self.addEventListener('install', e => e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES)).then(() => self.skipWaiting())));

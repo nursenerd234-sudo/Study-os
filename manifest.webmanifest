@@ -1,11 +1,11 @@
 {
+  "id": "./?app=studyos",
   "name": "Study OS",
   "short_name": "Study OS",
-  "description": "Karim's offline notes, flashcards and study plan",
-  "start_url": "./index.html#today",
+  "description": "Karim's offline notes, flashcards, courses and planner",
+  "start_url": "./index.html?source=pwa",
   "scope": "./",
   "display": "standalone",
-  "orientation": "any",
   "background_color": "#f2f2f7",
   "theme_color": "#f2f2f7",
   "icons": [

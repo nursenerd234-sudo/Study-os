@@ -3,7 +3,7 @@ const BLOCK_TYPES = [
   ['p', 'Text', 'T'], ['h1', 'Heading 1', 'H1'], ['h2', 'Heading 2', 'H2'], ['h3', 'Heading 3', 'H3'],
   ['ul', 'Bulleted list', '•'], ['ol', 'Numbered list', '1.'], ['todo', 'To-do', '☐'], ['toggle', 'Toggle', '▸'],
   ['quote', 'Quote', '❝'], ['callout', 'Callout', '!'], ['code', 'Code', '{}'], ['table', 'Table', '▦'], ['divider', 'Divider', '—'],
-  ['image', 'Image', '▣'], ['drawing', 'Drawing / diagram', '✎'], ['page', 'Sub-page', '▤']];
+  ['image', 'Image', '▣'], ['drawing', 'Drawing / diagram', '✎'], ['link', 'Link / video', '↗'], ['page', 'Sub-page', '▤']];
 const TEXT_TYPES = new Set(['p', 'h1', 'h2', 'h3', 'ul', 'ol', 'todo', 'toggle', 'quote', 'callout', 'code']);
 const EMOJIS = '📄 📘 📗 📕 📒 📓 🧠 👁️ 🩺 💊 💉 🧪 🔬 🏥 🧬 ❤️ 🫁 🦴 🗣️ 📖 ✍️ 📝 💡 ⭐ 🎯 ✅ 📌 🗂️ 📊 🤖 💻 🧑‍⚕️ 🔥 🌱 🚀 🗓️ ⚡ 🎧 📷 🧩'.split(' ');
 const FONTS = [['', 'Default', ''], ['serif', 'Serif', 'Georgia, "Noto Serif", "Times New Roman", serif'], ['mono', 'Mono', 'ui-monospace, "Roboto Mono", Menlo, monospace'], ['round', 'Rounded', 'ui-rounded, "SF Pro Rounded", Nunito, system-ui, sans-serif'], ['hand', 'Handwriting', '"Segoe Print", "Bradley Hand", cursive'], ['casual', 'Casual', 'casual, "Comic Sans MS", cursive']];
@@ -28,13 +28,30 @@ function newPage(parent, title, icon, blocks, c, m) {
   if (!parent) { p.course = c || null; p.mod = m || null; }
   S.pages.push(p); return p;
 }
-async function deletePage(id) {
+function trashPage(id) {
+  const root = pageById(id); if (!root) return;
   const ids = [id, ...descendants(id)];
-  for (const pid of ids) { const p = pageById(pid); if (p) for (const b of p.blocks) await dropBlockFiles(b); }
+  S.trash = S.trash || [];
+  S.trash.unshift({ id: 't' + uid(), at: Date.now(), rootId: id, course: pageCourse(root), mod: pageMod(root), pages: S.pages.filter(p => ids.includes(p.id)) });
   S.pages = S.pages.filter(p => !ids.includes(p.id));
+  if (ids.includes(curPage)) { curPage = root.parent && pageById(root.parent) ? root.parent : null; S.settings.lastPage = curPage; }
+  save();
+}
+function restoreTrash(tid) {
+  const t = (S.trash || []).find(x => x.id === tid); if (!t) return;
+  t.pages.forEach(p => S.pages.push(p));
+  const root = pageById(t.rootId);
+  if (root && root.parent && !pageById(root.parent)) { root.parent = null; root.course = t.course; root.mod = t.mod; }
+  if (root && !root.parent && root.course && !course(root.course)) { root.course = null; root.mod = null; }
+  S.trash = S.trash.filter(x => x !== t); save();
+}
+async function purgeTrash(tid) {
+  const t = (S.trash || []).find(x => x.id === tid); if (!t) return;
+  const ids = t.pages.map(p => p.id);
+  for (const p of t.pages) for (const b of p.blocks) await dropBlockFiles(b);
   S.pages.forEach(p => p.blocks = p.blocks.filter(b => !(b.type === 'page' && ids.includes(b.page))));
   S.cards.forEach(c => { if (ids.includes(c.page)) delete c.page; });
-  save();
+  S.trash = S.trash.filter(x => x !== t); save();
 }
 async function dropBlockFiles(b) { for (const k of ['file', 'data', 'bg']) if (b[k]) { dropURL(b[k]); await fileDel(b[k]); } }
 
@@ -74,66 +91,26 @@ function migratePages() {
   });
 }
 
-/* ---------- Notes view ---------- */
+/* ---------- Page view (tree lives in the sidebar) ---------- */
 V.notes = () => {
   app.className = 'wide';
   if (!curPage || !pageById(curPage)) curPage = S.settings.lastPage && pageById(S.settings.lastPage) ? S.settings.lastPage : null;
-  const narrowOpen = !!curPage && innerWidth <= 900 && V._openPage;
-  app.innerHTML = `<div class="notes ${narrowOpen ? 'open' : ''}" id="notes">
-    <aside class="side"><h1 style="margin-bottom:10px">Notes</h1>
-      <input id="nQ" placeholder="Search all notes" value="${esc(noteQ)}">
-      <div class="group pad tree" id="tree" style="margin-top:10px"></div></aside>
-    <section class="paper" id="paper"></section></div>`;
-  paintTree();
-  const q = $('#nQ'); q.oninput = () => { noteQ = q.value; paintTree(); };
-  if (curPage) paintPage(); else $('#paper').innerHTML = '<p class="muted">Pick a note, or tap + next to a module.</p>';
-};
-function paintTree() {
-  const t = $('#tree'); if (!t) return;
-  const ex = S.settings.expanded || (S.settings.expanded = {});
-  const curRoot = curPage && pageById(curPage) ? rootOf(pageById(curPage)) : null;
-  if (noteQ.trim()) {
-    const ql = noteQ.toLowerCase();
-    const hits = S.pages.filter(p => (p.title + ' ' + p.blocks.map(b => plain(b.html) + ' ' + plain(b.inner || '') + ' ' + (b.cap || '') + ' ' + (b.rows || []).flat().map(plain).join(' ')).join(' ')).toLowerCase().includes(ql));
-    t.innerHTML = hits.length ? hits.map(p => `<a data-p="${p.id}" class="${p.id === curPage ? 'on' : ''}"><span class="ic">${p.icon}</span><span class="tt">${esc(p.title || 'Untitled')}<br><small class="muted">${esc(courseName(pageCourse(p)))} › ${esc(modName(pageCourse(p), pageMod(p)))}</small></span></a>`).join('') : '<p class="muted small">Nothing found.</p>';
-  } else {
-    const pageRow = (p, d) => {
-      const ks = kids(p.id), open = ex[p.id] !== false && (ex[p.id] || crumbsOf(pageById(curPage) || {}).some(c => c.id === p.id));
-      return `<a data-p="${p.id}" class="${p.id === curPage ? 'on' : ''}" style="padding-left:${6 + d * 14}px"><span class="tw" data-tw="${p.id}">${ks.length ? (open ? '▾' : '▸') : ''}</span><span class="ic">${p.icon}</span><span class="tt">${esc(p.title || 'Untitled')}</span></a>` + (open ? ks.map(k => pageRow(k, d + 1)).join('') : '');
-    };
-    const head = (key, open, icon, label, cnt, d, add, color) => `<a class="th" data-tw="${key}" style="padding-left:${6 + d * 14}px"><span class="tw">${open ? '▾' : '▸'}</span><span class="ic">${icon}</span><span class="tt" ${color ? `style="color:${color};font-weight:650"` : ''}>${esc(label)}</span><small class="muted">${cnt}</small><span class="tadd" data-add="${add}" aria-label="New note">+</span></a>`;
-    let html = '';
-    for (const c of S.courses) {
-      const kc = 'c:' + c.id, oc = ex[kc] ?? (curRoot && curRoot.course === c.id);
-      html += head(kc, oc, c.icon, c.name, pagesIn(c.id).length, 0, c.id + '|', c.color);
-      if (!oc) continue;
-      for (const m of [...c.modules, { id: null, name: 'General' }]) {
-        const tp = topPages(c.id, m.id); if (m.id === null && !tp.length) continue;
-        const km = 'm:' + (m.id || c.id + '-gen'), om = ex[km] ?? (curRoot && curRoot.course === c.id && (curRoot.mod || null) === m.id);
-        html += head(km, om, '', m.name, pagesIn(c.id, m.id).length, 1, c.id + '|' + (m.id || ''));
-        if (om) html += tp.map(p => pageRow(p, 2)).join('') || `<p class="muted small" style="padding-left:48px;margin:4px 0">No notes yet</p>`;
-      }
-    }
-    const gen = topPages(null, null), kg = 'c:general', og = ex[kg] ?? true;
-    html += head(kg, og, '🗂️', 'General', gen.length, 0, '|');
-    if (og) html += gen.map(p => pageRow(p, 1)).join('');
-    t.innerHTML = html;
+  if (!curPage) {
+    const rec = [...S.pages].sort((a, b) => b.updated - a.updated).slice(0, 30);
+    app.innerHTML = `<h1>All pages</h1><p class="sub">Pick a page from the sidebar, or start a new one.</p><div class="row" style="margin:14px 0"><button class="btn-blue" id="npNew">${I('plus')} New page</button></div>
+      <div class="group">${rec.map(p => `<div class="cell" data-open="${p.id}" style="cursor:pointer"><span style="font-size:22px">${p.icon}</span><div class="grow"><b>${esc(p.title || 'Untitled')}</b><br><small>${esc(courseName(pageCourse(p)))} · ${new Date(p.updated).toLocaleDateString('en-GB')}</small></div>${I('chev', 'muted')}</div>`).join('')}</div>`;
+    $('#npNew').onclick = () => { const p = newPage(null, '', '📄'); save(); openPage(p.id, true); };
+    $$('[data-open]').forEach(x => x.onclick = () => openPage(x.dataset.open));
+    return;
   }
-  t.onclick = e => {
-    const add = e.target.closest('[data-add]');
-    if (add) { e.stopPropagation(); const [c, m] = add.dataset.add.split('|'); const p = newPage(null, '', '📄', null, c || null, m || null); if (c) { ex['c:' + c] = true; ex['m:' + (m || c + '-gen')] = true; } save(); openPage(p.id, true); return; }
-    const tw = e.target.closest('[data-tw]');
-    if (tw && (tw.classList.contains('th') || e.target.closest('.tw'))) {
-      const key = tw.dataset.tw;
-      if (tw.classList.contains('th')) { ex[key] = !(tw.querySelector('.tw').textContent === '▾'); save(); paintTree(); return; }
-      if (kids(key).length) { ex[key] = tw.textContent !== '▾'; save(); paintTree(); return; }
-    }
-    const a = e.target.closest('[data-p]'); if (a) openPage(a.dataset.p);
-  };
-}
+  app.innerHTML = '<section class="paper" id="paper"></section>';
+  paintPage();
+};
+function paintTree() { if (typeof renderSidebar === 'function') renderSidebar(); }
 function openPage(id, focusTitle) {
   curPage = id; S.settings.lastPage = id; V._openPage = true; save();
-  if (view !== 'notes') go('notes'); else { $('#notes').classList.add('open'); paintTree(); paintPage(); }
+  if (typeof closeDrawer === 'function') closeDrawer();
+  if (view !== 'notes') go('notes'); else { paintPage(); paintTree(); }
   if (focusTitle) setTimeout(() => { const t = $('#pTitle'); t && t.focus(); }, 60);
   window.scrollTo(0, 0);
 }
@@ -211,11 +188,12 @@ function paintPage() {
   const p = pageById(curPage), el = $('#paper'); if (!p || !el) return;
   const c = pageCourse(p), m = pageMod(p), cr = crumbsOf(p);
   el.innerHTML = `
-    <div class="crumbs"><a data-back="1">‹ Notes</a>${c ? ` / <a data-course="${c}">${esc(course(c).icon + ' ' + course(c).name)}</a> / <span>${esc(modName(c, m))}</span>` : ''}${cr.slice(0, -1).map(x => ` / <a data-p="${x.id}">${esc(x.title || 'Untitled')}</a>`).join('')}</div>
+    <div class="crumbs"><a data-back="1">${I('chevL')} Back</a>${c ? ` / <a data-course="${c}">${esc(course(c).icon + ' ' + course(c).name)}</a> / <span>${esc(modName(c, m))}</span>` : ''}${cr.slice(0, -1).map(x => ` / <a data-p="${x.id}">${esc(x.title || 'Untitled')}</a>`).join('')}</div>
     <button class="picon" id="pIcon" aria-label="Change icon">${p.icon}</button>
     <div class="ptitle" id="pTitle" contenteditable="true" dir="auto">${esc(p.title)}</div>
     <div class="ptools">${c ? tag(c) : ''}
-      <button data-act="sub">+ Sub-page</button><button data-act="draw">✎ Draw</button><button data-act="img">▣ Image</button><button data-act="card">★ Card</button><button data-act="more">More</button></div>
+      ${c && !p.parent ? `<button data-act="done" class="${p.done ? 'isdone' : ''}">${I(p.done ? 'checkc' : 'circle')} ${p.done ? 'Completed' : 'Mark complete'}</button>${nextLesson(p) ? `<button data-act="next">Next lesson ${I('chev')}</button>` : ''}` : ''}
+      <button data-act="sub">${I('doc')} Sub-page</button><button data-act="draw">${I('pencil')} Draw</button><button data-act="img">${I('image')} Image</button><button data-act="card">${I('cards')} Card</button><button data-act="more" aria-label="More">${I('more')}</button><button data-act="trash" class="danger" aria-label="Move to trash">${I('trash')}</button></div>
     ${wordBar()}
     <div class="blocks" id="blocks" style="${p.font ? 'font-family:' + fontCSS(p.font) + ';' : ''}${p.size ? 'font-size:' + p.size + 'px;' : ''}"></div>
     <button class="addblk" id="addBlk">+ Add a block</button>`;
@@ -229,12 +207,15 @@ function paintPage() {
 }
 function pageClick(e) {
   const p = pageById(curPage);
-  if (e.target.closest('[data-back]')) { V._openPage = false; $('#notes').classList.remove('open'); return; }
+  if (e.target.closest('[data-back]')) { const c = pageCourse(p); if (p.parent) openPage(p.parent); else if (c) openCourse(c, pageMod(p)); else go('today'); return; }
   const cc = e.target.closest('[data-course]'); if (cc) { openCourse(cc.dataset.course); return; }
   const cp = e.target.closest('.crumbs [data-p]'); if (cp) { openPage(cp.dataset.p); return; }
   const act = e.target.closest('[data-act]'); if (!act) return;
   const a = act.dataset.act;
   if (a === 'sub') addSubpage(p, null);
+  if (a === 'trash') { askTrash(p); return; }
+  if (a === 'done') { p.done = !p.done; save(); paintPage(); renderSidebar(); if (p.done) toast('Lesson completed ✓'); return; }
+  if (a === 'next') { const n = nextLesson(p); if (n) openPage(n.id); return; }
   if (a === 'draw') insertDrawing(null);
   if (a === 'img') insertImage(null);
   if (a === 'card') cardSheet({ course: pageCourse(p), mod: pageMod(p), page: p.id });
@@ -245,8 +226,15 @@ function pageClick(e) {
       { icon: 'Aa', text: 'Page font & size', fn: () => pageFontSheet(p) },
       ...(p.parent ? [] : [{ icon: '▤', text: 'Move to course / module', fn: () => moveSheet(p) }]),
       { icon: '⧉', text: 'Duplicate note', fn: () => { const c = newPage(p.parent, p.title + ' (copy)', p.icon, JSON.parse(JSON.stringify(p.blocks.filter(b => !['image', 'drawing'].includes(b.type)))), pageCourse(p), pageMod(p)); c.blocks.forEach(b => b.id = 'b' + uid()); save(); openPage(c.id); } },
-      '-', { icon: '✕', text: 'Delete note', danger: true, fn: () => sheet('Delete note?', `<p>“${esc(p.title || 'Untitled')}” and ${descendants(p.id).length} sub-pages will be deleted. Cards stay.</p><button class="big danger" id="dYes">Delete</button>`, () => $('#dYes').onclick = async () => { const parent = p.parent; await deletePage(p.id); closeSheet(); curPage = parent; S.settings.lastPage = parent; V._openPage = !!parent; go('notes'); }) }]);
+      '-', { icon: '🗑', text: 'Move to trash', danger: true, fn: () => askTrash(p) }]);
   }
+}
+function askTrash(p) {
+  const n = descendants(p.id).length;
+  sheet('Move to trash?', `<p>“${esc(p.title || 'Untitled')}”${n ? ` and ${n} sub-page${n > 1 ? 's' : ''}` : ''} will go to Trash. You can restore it from Trash in the sidebar.</p><button class="big danger" id="trYes">${I('trash')} Move to trash</button>`, () => $('#trYes').onclick = () => {
+    const back = p.parent, c = pageCourse(p), m = pageMod(p); trashPage(p.id); closeSheet(); toast('Moved to trash');
+    if (view === 'notes' && !pageById(curPage)) { if (back && pageById(back)) openPage(back); else if (c) openCourse(c, m); else go('today'); } else { if (view === 'notes') paintPage(); else if (V[view]) V[view](); renderSidebar(); }
+  });
 }
 function pageFontSheet(p) {
   sheet('Page font & size', `<label for="pfF">Default font</label><select id="pfF">${FONTS.map(f => `<option value="${f[0]}" ${p.font === f[0] ? 'selected' : ''}>${f[1]}</option>`).join('')}</select>
@@ -286,6 +274,7 @@ function blockHTML(b, num, ro) {
     case 'table': body = `<div class="tblwrap"><table class="ntable">${(b.rows || [['']]).map((r, i) => `<tr>${r.map((c, j) => `<td><div class="ed cell" ${ce} dir="auto" data-r="${i}" data-c="${j}">${clean(c)}</div></td>`).join('')}</tr>`).join('')}</table></div>${ro ? '' : '<div class="mediaBar"><button data-tbl="row+">+ Row</button><button data-tbl="col+">+ Column</button><button data-tbl="row-">− Row</button><button data-tbl="col-">− Column</button></div>'}`; break;
     case 'image': body = `<img data-file="${b.file}" data-view alt="${esc(b.cap || 'image')}">${ed('cap', b.cap || '', 'Add a caption')}${ro ? '' : '<div class="mediaBar"><button data-annot>✎ Annotate</button></div>'}`; break;
     case 'drawing': body = `<img data-file="${b.file}" data-view alt="drawing">${ro ? '' : '<div class="mediaBar"><button data-redraw>✎ Edit drawing</button></div>'}`; break;
+    case 'link': { let host = ''; try { host = new URL(b.url).hostname.replace('www.', ''); } catch (e) { } const vid = /youtu\.?be|vimeo|coursera|udemy/.test(host); body = `<a class="bookmark" href="${esc(b.url)}" target="_blank" rel="noopener"><span class="bmic">${I(vid ? 'play' : 'link')}</span><span><b>${esc(b.title || b.url)}</b><small>${esc(host)}${vid ? ' · lesson video' : ''}</small></span></a>${ro ? '' : '<div class="mediaBar"><button data-editlink>Edit link</button></div>'}`; break; }
     case 'page': { const c = pageById(b.page); body = c ? `<div class="plink" data-open="${c.id}">${c.icon} ${esc(c.title || 'Untitled')}</div>` : '<div class="muted small">(deleted page)</div>'; break; }
     default: body = ed('', b.html, '');
   }
@@ -318,6 +307,7 @@ function convert(b, type) {
   if (type === 'image') { insertImage(b.id, true); return; }
   if (type === 'drawing') { insertDrawing(b.id, true); return; }
   if (type === 'page') { addSubpage(pageById(curPage), b.id, true); return; }
+  if (type === 'link') { linkSheet(null, b); return; }
   const p = pageById(curPage), i = p.blocks.indexOf(b);
   if (type === 'divider' || type === 'table') { const nb2 = type === 'table' ? newBlock('table', { rows: [['', '', ''], ['', '', ''], ['', '', '']] }) : newBlock('divider'); if (!plain(b.html).trim()) p.blocks[i] = nb2; else p.blocks.splice(i + 1, 0, nb2); const nb = newBlock('p'); p.blocks.splice(p.blocks.indexOf(nb2) + 1, 0, nb); save(); paintBlocks(nb.id); return; }
   b.type = type; if (type !== 'todo') delete b.checked; if (type === 'toggle') b.open = true;
@@ -442,6 +432,7 @@ document.addEventListener('click', e => {
   if (t.matches('[data-chk]')) { const { b, d } = blkOf(t); b.checked = t.checked; d.classList.toggle('done', t.checked); save(); return; }
   if (t.closest('[data-tg]')) { const { b, d } = blkOf(t); b.open = !b.open; d.classList.toggle('open', b.open); save(); return; }
   if (t.closest('[data-annot]')) { annotate(blkOf(t).b); return; }
+  if (t.closest('[data-editlink]')) { linkSheet(blkOf(t).b); return; }
   if (t.closest('[data-redraw]')) { redraw(blkOf(t).b); return; }
   if (t.matches('[data-view]')) { viewImage(blkOf(t).b); return; }
   const tb = t.closest('[data-tbl]');
@@ -505,4 +496,20 @@ async function exportPDF(pages, title) {
   }).join('');
   toast('Choose “Save as PDF” in the print screen');
   printHTML(title, html);
+}
+
+function linkSheet(existing, ref) {
+  sheet(existing ? 'Edit link' : 'Add link or video', `<label for="lkU">Link (YouTube, Coursera, Udemy, article…)</label><input id="lkU" type="url" inputmode="url" placeholder="https://" value="${esc(existing ? existing.url : '')}">
+    <label for="lkT">Title</label><input id="lkT" placeholder="e.g. Glaucoma lecture — part 1" value="${esc(existing ? existing.title : '')}">
+    <p class="sub" style="margin-top:8px">Opens in your browser when online. Write your notes under it.</p>
+    <button class="btn-blue big" id="lkOk" style="margin-top:12px">Save</button>`, () => {
+    setTimeout(() => $('#lkU').focus(), 60);
+    $('#lkOk').onclick = () => {
+      let u = $('#lkU').value.trim(); if (!u) { toast('Paste a link'); return; } if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+      const t = $('#lkT').value.trim();
+      if (existing) Object.assign(existing, { url: u, title: t });
+      else { const nb = newBlock('link', { url: u, title: t }); replaceOrInsert(ref ? ref.id : null, nb, !!ref); }
+      save(); closeSheet(); paintBlocks();
+    };
+  });
 }

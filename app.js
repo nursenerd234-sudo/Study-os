@@ -43,19 +43,20 @@ function upgrade() {
   }
   if (!S.questions) S.questions = seedQuestions();
   if (!S.pages) seedPages(); else migratePages();
-  S.v = 3;
+  S.tasks = S.tasks || []; S.events = S.events || []; S.trash = S.trash || [];
+  if (S.v < 4 && !S.tasks.length) { newTask({ title: 'Do today\'s card review', due: today(), course: null, prio: 1 }); newTask({ title: 'Write one ophthalmology lesson note', due: today(), course: 'oph' }); newTask({ title: 'Export a backup', due: addDays(today(), (5 - new Date().getDay() + 7) % 7 || 7), course: null }); }
+  S.v = 4;
   applyTheme();
 }
 
 /* ===== routing ===== */
 function go(v) {
   if (!V[v]) v = 'today';
-  view = v; app.className = '';
+  view = v; app.className = 'wide'; closeDrawer();
   if (location.hash.slice(1) !== v) history.replaceState(null, '', '#' + v);
-  $$('nav.tabs button').forEach(b => b.classList.toggle('on', b.dataset.v === v || (b.dataset.v === 'courses' && (v === 'course' || v === 'cards'))));
-  closeMenu(); V[v](); window.scrollTo(0, 0);
+  closeMenu(); V[v](); renderSidebar(); window.scrollTo(0, 0);
 }
-$$('nav.tabs button').forEach(b => b.onclick = () => { cur = null; if (b.dataset.v === 'notes' && view === 'notes') { V._openPage = false; } go(b.dataset.v); });
+$$('nav.tabs button').forEach(b => b.onclick = () => { if (b.dataset.v === 'menu') { openDrawer(); return; } cur = null; go(b.dataset.v); });
 window.addEventListener('hashchange', () => { const v = location.hash.slice(1); if (v && v !== view && V[v]) { cur = null; go(v); } });
 
 /* ===== helpers ===== */
@@ -75,37 +76,48 @@ const trackOpts = sel => courseOpts(sel);
 
 /* ===== Today ===== */
 V.today = () => {
-  const { rev, nw } = dueCards(), L = log(), tasks = todayTasks(), easy = S.settings.easy, n = rev.length + nw.length;
-  const shown = easy ? tasks.slice(0, 2) : tasks;
-  const recent = [...S.pages].sort((a, b) => b.updated - a.updated).slice(0, 4);
-  const d = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  app.className = 'wide';
+  const { rev, nw } = dueCards(), L = log(), plan = todayTasks().filter(t => !t.auto), easy = S.settings.easy, n = rev.length + nw.length, t0 = today();
+  const myTasks = S.tasks.filter(t => !t.done && t.due && t.due <= t0).sort((a, b) => (b.prio || 0) - (a.prio || 0));
+  const evs = S.events.filter(e => e.date === t0).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+  const cont = S.courses.map(c => ({ c, pr: courseProgress(c.id) })).filter(x => x.pr.next);
+  const recent = [...S.pages].sort((a, b) => b.updated - a.updated).slice(0, 5);
+  const hr = new Date().getHours(), hello = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
   app.innerHTML = `
-  <div class="row" style="flex-wrap:nowrap;align-items:flex-start"><div style="flex:1 1 auto"><p class="sub">${d}</p><h1>${n ? 'Ready when you are.' : 'All caught up ✓'}</h1></div><button id="themeBtn" style="flex:0 0 auto" aria-label="Theme">${{ auto: '◐ Auto', light: '☀︎ Light', dark: '☾ Dark' }[S.settings.theme || 'auto']}</button></div>
-  <div class="stats"><div class="stat"><b>${streak()}</b><span>day streak</span></div><div class="stat"><b>${n}</b><span>cards waiting</span></div><div class="stat"><b>${L.reviews + L.news}</b><span>done today</span></div></div>
-  <div class="group pad">
-    <button class="btn-blue big" id="start" ${n ? '' : 'disabled style="opacity:.45"'}>${n ? `Start session · ${n} cards` : 'No cards due'}</button>
-    <button id="easy" style="width:100%;margin-top:10px">${easy ? 'Hard-day mode is ON · tap to turn off' : 'Hard day? Switch to 5-minute mode'}</button>
-  </div>
-  <h2>Today</h2>
-  <div class="group">${shown.map(t => { const done = t.auto ? (L.reviews + L.news > 0 && !n) : !!L.tasks[t.id];
-    return `<div class="task ${done ? 'done' : ''}"><input type="checkbox" data-t="${t.id}" ${done ? 'checked' : ''} ${t.auto ? 'disabled' : ''} aria-label="${esc(t.t)}"><div class="txt">${tag(t.tr)}<br><b>${esc(t.t)}</b><small>${esc(t.d)}</small></div></div>`; }).join('')}</div>
-  ${S.inbox.length ? `<h2>Inbox · ${S.inbox.length}</h2><div class="group">${S.inbox.slice(0, 5).map(i => `<div class="cell"><div class="grow">${tag(i.tr)}<br>${esc(i.text)}</div><button data-mk="${i.id}">Card</button><button data-rm="${i.id}" aria-label="Done">✓</button></div>`).join('')}</div>` : ''}
-  <h2>Courses</h2>
-  <div class="cgrid small">${S.courses.map(c => { const d = dueCards({ course: c.id }), k = d.rev.length + d.nw.length; return `<button class="ctile" data-course="${c.id}" style="--cc:${c.color}"><span class="cicon">${c.icon}</span><b>${esc(c.name)}</b><span class="cdue">${k ? k + ' due' : '✓'}</span></button>`; }).join('')}</div>
-  <h2>Recent notes</h2>
-  <div class="group">${recent.map(p => `<div class="cell" data-open="${p.id}" style="cursor:pointer"><span style="font-size:22px">${p.icon}</span><div class="grow"><b>${esc(p.title || 'Untitled')}</b><br><small>${new Date(p.updated).toLocaleDateString('en-GB')}</small></div><span class="muted">›</span></div>`).join('')}</div>
-  <h2>Focus timer</h2>
-  <div class="group pad"><div class="timer" id="tm">25:00</div>
-    <select id="tmTr" style="margin-top:8px">${trackOpts()}</select>
-    <div class="row" style="margin-top:10px"><button data-min="15">15 min</button><button data-min="25" class="btn-blue">25 min</button><button id="tmStop">Stop</button></div></div>`;
+  <div class="hhead"><div><p class="sub">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p><h1>${hello}, Karim</h1></div><button id="themeBtn" aria-label="Theme">${'Theme: ' + { auto: 'Auto', light: 'Light', dark: 'Dark' }[S.settings.theme || 'auto']}</button></div>
+  <div class="homegrid">
+   <div class="hcol">
+    <div class="hero group pad"><div class="row" style="flex-wrap:nowrap;align-items:center"><div style="flex:1 1 auto"><b style="font-size:20px">${n ? n + ' cards ready' : 'All caught up ✓'}</b><br><small class="muted">${streak()} day streak · ${L.reviews + L.news} done today</small></div><span style="flex:0 0 auto;color:var(--blue)">${I('cards', 'big')}</span></div>
+      <button class="btn-blue big" id="start" style="margin-top:12px" ${n ? '' : 'disabled'}>${n ? 'Start review' : 'Nothing due'}</button>
+      <button id="easy" style="width:100%;margin-top:8px">${easy ? 'Hard-day mode ON · tap to turn off' : 'Hard day? 5-minute mode'}</button></div>
+    ${cont.length ? `<h2>Continue learning</h2><div class="contgrid">${cont.slice(0, 4).map(({ c, pr }) => `<button class="cont" data-lesson="${pr.next.id}" style="--cc:${c.color}"><span class="cicon">${c.icon}</span><span class="grow"><small class="muted">${esc(c.name)}</small><br><b>${esc(pr.next.title || 'Untitled')}</b><span class="bar" style="display:block;margin-top:8px"><i style="width:${Math.round(pr.done / pr.total * 100)}%;background:${c.color}"></i></span></span>${I('play')}</button>`).join('')}</div>` : ''}
+    <h2>Today's study plan</h2>
+    <div class="group">${(easy ? plan.slice(0, 1) : plan).map(t => { const done = !!L.tasks[t.id]; return `<div class="task ${done ? 'done' : ''}"><input type="checkbox" data-t="${t.id}" ${done ? 'checked' : ''} aria-label="${esc(t.t)}"><div class="txt">${tag(t.tr)}<br><b>${esc(t.t)}</b><small>${esc(t.d)}</small></div></div>`; }).join('')}</div>
+   </div>
+   <div class="hcol">
+    <h2 class="h2row" style="margin-top:4px"><span>Today</span><button class="iconbtn" id="hAddTask" aria-label="Add task">${I('plus')}</button></h2>
+    <div class="group">${evs.map(e => `<div class="cell" data-ev="${e.id}" style="cursor:pointer"><span class="evbar" style="background:${(course(e.course) || {}).color || 'var(--blue)'}"></span><div class="grow"><b>${esc(e.title)}</b><br><small>${e.time || 'All day'}</small></div></div>`).join('')}${myTasks.map(taskRow).join('')}${!evs.length && !myTasks.length ? '<div class="cell muted">No tasks or events today.</div>' : ''}</div>
+    <form class="quickadd" id="hqa" style="margin-top:10px"><span>${I('plus')}</span><input id="hqaIn" placeholder="Quick task… (try “tomorrow”)" dir="auto" autocomplete="off"><button class="btn-blue">Add</button></form>
+    ${S.inbox.length ? `<h2>Inbox · ${S.inbox.length}</h2><div class="group">${S.inbox.slice(0, 5).map(i => `<div class="cell"><div class="grow">${tag(i.tr)}<br>${esc(i.text)}</div><button data-mk="${i.id}">Card</button><button class="iconbtn" data-rm="${i.id}" aria-label="Done">${I('check')}</button></div>`).join('')}</div>` : ''}
+    <h2>Focus timer</h2>
+    <div class="group pad"><div class="timer" id="tm">25:00</div><select id="tmTr" style="margin-top:8px">${trackOpts()}</select>
+      <div class="row" style="margin-top:10px"><button data-min="15">15 min</button><button data-min="25" class="btn-blue">25 min</button><button id="tmStop">Stop</button></div></div>
+    <h2>Recent pages</h2>
+    <div class="group">${recent.map(p => `<div class="cell" data-open="${p.id}" style="cursor:pointer"><span style="font-size:20px">${p.icon}</span><div class="grow"><b>${esc(p.title || 'Untitled')}</b><br><small>${esc(courseName(pageCourse(p)))}</small></div>${I('chev', 'muted')}</div>`).join('')}</div>
+   </div>
+  </div>`;
   $('#start').onclick = () => n && startSession(rev, nw);
   $('#easy').onclick = () => { S.settings.easy = !S.settings.easy; save(); V.today(); };
   $('#themeBtn').onclick = () => { S.settings.theme = { auto: 'light', light: 'dark', dark: 'auto' }[S.settings.theme || 'auto']; applyTheme(); save(); V.today(); };
-  $$('[data-course]').forEach(b => b.onclick = () => openCourse(b.dataset.course));
+  $$('[data-lesson]').forEach(b => b.onclick = () => openPage(b.dataset.lesson));
   $$('[data-t]').forEach(cb => cb.onchange = () => { const L = log(); if (cb.checked) L.tasks[cb.dataset.t] = 1; else delete L.tasks[cb.dataset.t]; save(); cb.closest('.task').classList.toggle('done', cb.checked); });
+  $('#hAddTask').onclick = () => taskSheet(null, V.today);
+  $('#hqa').onsubmit = e => { e.preventDefault(); const v = $('#hqaIn').value.trim(); if (!v) return; const q = parseQuick(v); newTask({ title: q.title || v, due: q.due || today() }); save(); V.today(); renderSidebar(); };
+  bindTasks(app, () => { V.today(); renderSidebar(); });
+  $$('[data-ev]').forEach(r => r.onclick = () => eventSheet(S.events.find(x => x.id === r.dataset.ev), V.today));
   $$('[data-min]').forEach(b => b.onclick = () => startTimer(+b.dataset.min));
   $('#tmStop').onclick = () => stopTimer(true);
-  $$('[data-open]').forEach(c => c.onclick = () => { V._openPage = true; openPage(c.dataset.open); });
+  $$('[data-open]').forEach(c => c.onclick = () => openPage(c.dataset.open));
   $$('[data-rm]').forEach(b => b.onclick = () => { S.inbox = S.inbox.filter(i => i.id !== b.dataset.rm); save(); V.today(); });
   $$('[data-mk]').forEach(b => b.onclick = () => { const i = S.inbox.find(x => x.id === b.dataset.mk); cardSheet({ front: i.text, back: '', course: i.tr, onSaved: () => { S.inbox = S.inbox.filter(x => x !== i); save(); V.today(); } }); });
   paintTimer();
@@ -171,7 +183,7 @@ function cardSheet(o) {
 let cardFilter = 'all', cardQ = '';
 V.cards = () => {
   const list = S.cards.filter(c => (cardFilter === 'all' || c.tr === cardFilter) && (!cardQ || (c.front + ' ' + c.back).toLowerCase().includes(cardQ.toLowerCase())));
-  app.innerHTML = `<button id="toCourses" style="margin-top:4px">‹ Courses</button><h1>All flashcards</h1><p class="sub">${S.cards.length} cards · select text in a note to make more</p>
+  app.innerHTML = `<button id="toCourses" style="margin-top:4px">${I('chevL')} Courses</button><h1>All flashcards</h1><p class="sub">${S.cards.length} cards · select text in a note to make more</p>
   <div class="row" style="margin:14px 0"><button class="btn-blue" id="cNew">New card</button></div>
   <div class="seg">${[{ id: 'all', name: 'All' }, ...S.courses].map(t => `<button data-f="${t.id}" class="${cardFilter === t.id ? 'on' : ''}">${esc(t.name.replace('Health Informatics & AI', 'Informatics'))}</button>`).join('')}</div>
   <input id="cQ" placeholder="Search cards" value="${esc(cardQ)}" style="margin-top:10px">
@@ -201,8 +213,10 @@ function editCard(c, done) {
 /* ===== quick add (+) ===== */
 $('#fab').onclick = () => {
   const p = view === 'notes' && curPage ? pageById(curPage) : null, cc = p ? pageCourse(p) : (view === 'course' ? curCourse : null), cm = p ? pageMod(p) : (view === 'course' ? curMod : null);
-  sheet('Quick add', `<div class="seg" id="qaSeg"><button class="on" data-q="note">Note</button><button data-q="card">Card</button><button data-q="question">Question</button><button data-q="block">NCLEX block</button><button data-q="miss">Missed Q</button><button data-q="page">Page</button></div><div id="qaBody" style="margin-top:12px"></div>`, sc => {
+  sheet('Quick add', `<div class="seg" id="qaSeg"><button data-q="task">Task</button><button data-q="event">Event</button><button class="on" data-q="note">Note</button><button data-q="card">Card</button><button data-q="question">Question</button><button data-q="block">NCLEX block</button><button data-q="miss">Missed Q</button><button data-q="page">Page</button></div><div id="qaBody" style="margin-top:12px"></div>`, sc => {
     const body = $('#qaBody'), pane = {
+      task: () => { closeSheet(); taskSheet(null, () => { V[view] && V[view](); renderSidebar(); }, { course: cc || null }); },
+      event: () => { closeSheet(); eventSheet(null, () => V[view] && V[view](), { course: cc || null, date: view === 'calendar' && calDay ? calDay : today() }); },
       note: () => { body.innerHTML = `<label for="iT">Something from work to look up tonight</label><textarea id="iT" placeholder="e.g. Why trypan blue before capsulorhexis?"></textarea><label for="iTr">Track</label><select id="iTr">${courseOpts(cc || 'oph')}</select><button class="btn-blue big" id="iAdd" style="margin-top:12px">Save to inbox</button>`; setTimeout(() => $('#iT').focus(), 60); $('#iAdd').onclick = () => { const t = $('#iT').value.trim(); if (!t) return; S.inbox.unshift({ id: uid(), text: t, tr: $('#iTr').value, created: Date.now() }); save(); closeSheet(); toast('Saved to inbox'); if (view === 'today') V.today(); }; },
       card: () => { closeSheet(); cardSheet({ course: cc, mod: cm, page: p && p.id, onSaved: () => (V[view] && ['cards', 'course'].includes(view)) && V[view]() }); },
       question: () => { closeSheet(); questionSheet({ course: cc || 'nclex', mod: cm, onSaved: () => view === 'course' && V.course() }); },

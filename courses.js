@@ -1,5 +1,8 @@
 /* Study OS — courses: grid, per-course dashboard with modules, notes, cards, questions */
-let curCourse = null, curMod = null, courseTab = 'notes';
+let curCourse = null, curMod = null, courseTab = 'learn';
+function courseLessons(cid, m) { const c = course(cid); if (!c) return []; const mods = m != null ? [m] : [...c.modules.map(x => x.id), null]; return mods.flatMap(mid => topPages(cid, mid).sort((a, b) => (a.order ?? a.created) - (b.order ?? b.created))); }
+function nextLesson(p) { const c = pageCourse(p); if (!c || p.parent) return null; const L = courseLessons(c); const i = L.findIndex(x => x.id === p.id); return i >= 0 ? L[i + 1] || null : null; }
+function courseProgress(cid, m) { const L = courseLessons(cid, m); return { done: L.filter(x => x.done).length, total: L.length, next: L.find(x => !x.done) }; }
 function openCourse(id, mod) { curCourse = id; curMod = mod === undefined ? null : mod; S.settings.lastCourse = id; save(); go('course'); }
 const inScope = (x, c, m) => (x.course || x.tr) === c && (m == null || (x.mod || null) === m);
 const cardsIn = (c, m) => S.cards.filter(x => x.tr === c && (m == null || (x.mod || null) === m));
@@ -9,7 +12,7 @@ V.courses = () => {
   app.innerHTML = `<h1>Courses</h1><p class="sub">Each course has modules, notes, flashcards and questions.</p>
   <div class="cgrid">${S.courses.map(c => {
     const due = dueCards({ course: c.id }), n = due.rev.length + due.nw.length, cards = cardsIn(c.id), strong = cards.filter(x => x.state === 'review' && x.s >= 21).length;
-    return `<button class="ctile" data-c="${c.id}" style="--cc:${c.color}"><span class="cicon">${c.icon}</span><b>${esc(c.name)}</b><small>${c.modules.length} modules · ${pagesIn(c.id).length} notes · ${cards.length} cards</small><div class="bar"><i style="width:${cards.length ? Math.round(strong / cards.length * 100) : 0}%;background:${c.color}"></i></div><span class="cdue">${n ? n + ' due' : '✓'}</span></button>`;
+    return `<button class="ctile" data-c="${c.id}" style="--cc:${c.color}"><span class="cicon">${c.icon}</span><b>${esc(c.name)}</b><small>${c.modules.length} modules · ${courseProgress(c.id).done}/${courseProgress(c.id).total} lessons · ${cards.length} cards</small><div class="bar"><i style="width:${cards.length ? Math.round(strong / cards.length * 100) : 0}%;background:${c.color}"></i></div><span class="cdue">${n ? n + ' due' : '✓'}</span></button>`;
   }).join('')}<button class="ctile add" id="cAdd"><span class="cicon">＋</span><b>New course</b><small>Any subject or skill</small></button></div>
   <div class="row" style="margin-top:14px"><button id="allCards">All flashcards</button><button id="allQ">Mixed quiz (all courses)</button></div>`;
   $$('[data-c]').forEach(b => b.onclick = () => openCourse(b.dataset.c));
@@ -25,23 +28,26 @@ V.course = () => {
   const cards = cardsIn(c.id, m), qs = qsIn(c.id, m), pages = m == null ? pagesIn(c.id) : pagesIn(c.id, m);
   const strong = cards.filter(x => x.state === 'review' && x.s >= 21).length;
   const quiz = (S.quizzes || []).filter(z => z.course === c.id && (m == null || z.mod === m)).slice(-1)[0];
+  const pr = courseProgress(c.id, m), pct = pr.total ? Math.round(pr.done / pr.total * 100) : 0;
   app.innerHTML = `
-  <div class="chead" style="--cc:${c.color}"><button class="cback" id="cBack">‹ Courses</button>
-    <div class="chrow"><span class="cicon big">${c.icon}</span><div><h1 style="margin:0">${esc(c.name)}</h1><p class="sub">${m == null ? 'All modules' : esc(modName(c.id, m))}</p></div><button id="cEdit">Edit</button></div></div>
+  <div class="chead" style="--cc:${c.color}"><button class="cback" id="cBack">${I('chevL')} Courses</button>
+    <div class="chrow"><span class="cicon big">${c.icon}</span><div><h1 style="margin:0">${esc(c.name)}</h1><p class="sub">${m == null ? 'All modules' : esc(modName(c.id, m))}</p></div><button id="cEdit">Edit</button></div>
+    <div class="cprog"><div class="bar"><i style="width:${pct}%;background:${c.color}"></i></div><small>${pr.done}/${pr.total} lessons · ${pct}%</small>${pr.next ? `<button class="btn-blue" id="cCont">${I('play')} ${pr.done ? 'Continue' : 'Start'}: ${esc(pr.next.title || 'Untitled')}</button>` : (pr.total ? '<b>Course complete 🎉</b>' : '')}</div></div>
   <div class="chips">${[{ id: null, name: 'All' }, ...c.modules].map(x => `<button data-m="${x.id ?? ''}" class="${(m ?? '') === (x.id ?? '') ? 'on' : ''}" style="${(m ?? '') === (x.id ?? '') ? `background:${c.color};color:#fff` : ''}">${esc(x.name)}</button>`).join('')}<button id="mAdd">+ Module</button></div>
   <div class="stats" style="grid-template-columns:repeat(4,minmax(0,1fr))"><div class="stat"><b>${nDue}</b><span>due</span></div><div class="stat"><b>${cards.length ? Math.round(strong / cards.length * 100) : 0}%</b><span>strong</span></div><div class="stat"><b>${pages.length}</b><span>notes</span></div><div class="stat"><b>${quiz ? Math.round(quiz.right / quiz.n * 100) + '%' : '–'}</b><span>last quiz</span></div></div>
   <div class="study">
-    <button data-s="review" style="--cc:${c.color}"><b>Review</b><small>${nDue} cards due</small></button>
-    <button data-s="questions" style="--cc:${c.color}"><b>Practice questions</b><small>${qs.length} questions</small></button>
-    <button data-s="test" style="--cc:${c.color}"><b>Test</b><small>from ${cards.length} cards</small></button>
-    <button data-s="match" style="--cc:${c.color}"><b>Match</b><small>${S.settings.matchBest && S.settings.matchBest[c.id] ? 'best ' + S.settings.matchBest[c.id].toFixed(1) + 's' : 'beat the clock'}</small></button>
+    <button data-s="review" style="--cc:${c.color}">${I('cards')}<b>Review</b><small>${nDue} cards due</small></button>
+    <button data-s="questions" style="--cc:${c.color}">${I('quiz')}<b>Practice questions</b><small>${qs.length} questions</small></button>
+    <button data-s="test" style="--cc:${c.color}">${I('checkc')}<b>Test</b><small>from ${cards.length} cards</small></button>
+    <button data-s="match" style="--cc:${c.color}">${I('timer')}<b>Match</b><small>${S.settings.matchBest && S.settings.matchBest[c.id] ? 'best ' + S.settings.matchBest[c.id].toFixed(1) + 's' : 'beat the clock'}</small></button>
   </div>
-  <div class="seg" id="cSeg" style="margin-top:18px">${[['notes', 'Notes · ' + pages.length], ['cards', 'Cards · ' + cards.length], ['questions', 'Questions · ' + qs.length], ...(m == null ? [['modules', 'Modules']] : [])].map(t => `<button data-t="${t[0]}" class="${courseTab === t[0] ? 'on' : ''}">${t[1]}</button>`).join('')}</div>
+  <div class="seg" id="cSeg" style="margin-top:18px">${[['learn', 'Curriculum'], ['notes', 'Notes · ' + pages.length], ['cards', 'Cards · ' + cards.length], ['questions', 'Questions · ' + qs.length], ...(m == null ? [['modules', 'Modules']] : [])].map(t => `<button data-t="${t[0]}" class="${courseTab === t[0] ? 'on' : ''}">${t[1]}</button>`).join('')}</div>
   <div id="cBody"></div>`;
   $('#cBack').onclick = () => go('courses');
   $('#cEdit').onclick = () => courseSheet(c);
+  const cc = $('#cCont'); if (cc) cc.onclick = () => openPage(pr.next.id);
   $('#mAdd').onclick = () => moduleSheet(c, null);
-  $$('.chips [data-m]').forEach(b => b.onclick = () => { curMod = b.dataset.m || null; if (curMod && courseTab === 'modules') courseTab = 'notes'; V.course(); });
+  $$('.chips [data-m]').forEach(b => b.onclick = () => { curMod = b.dataset.m || null; if (curMod && courseTab === 'modules') courseTab = 'learn'; V.course(); });
   $$('#cSeg [data-t]').forEach(b => b.onclick = () => { courseTab = b.dataset.t; V.course(); });
   $$('.study [data-s]').forEach(b => b.onclick = () => {
     const s = b.dataset.s, ctx = { course: c.id, mod: m, mode: s }, title = c.name + (m ? ' · ' + modName(c.id, m) : '');
@@ -53,29 +59,41 @@ V.course = () => {
   paintCourseBody(c, m, pages, cards, qs);
 };
 function paintCourseBody(c, m, pages, cards, qs) {
-  const box = $('#cBody'); if (courseTab === 'modules' && m != null) courseTab = 'notes';
+  const box = $('#cBody'); if (courseTab === 'modules' && m != null) courseTab = 'learn';
+  if (courseTab === 'learn') {
+    const mods = m != null ? [c.modules.find(x => x.id === m)] : [...c.modules, { id: null, name: 'General' }];
+    box.innerHTML = mods.filter(Boolean).map(x => { const L = topPages(c.id, x.id).sort((a, b) => (a.order ?? a.created) - (b.order ?? b.created)); if (x.id === null && !L.length) return ''; const d = L.filter(l => l.done).length;
+      return `<div class="section"><div class="sechead"><b>${esc(x.name)}</b><small class="muted">${d}/${L.length} lessons</small><button class="iconbtn" data-addl="${x.id || ''}" aria-label="Add lesson">${I('plus')}</button></div><div class="group">${L.length ? L.map((l, i) => `<div class="cell lesson" data-open="${l.id}"><button class="lcheck ${l.done ? 'on' : ''}" data-done="${l.id}" aria-label="Mark complete" style="color:${l.done ? c.color : ''}">${I(l.done ? 'checkc' : 'circle')}</button><span style="font-size:20px">${l.icon}</span><div class="grow"><b>${i + 1}. ${esc(l.title || 'Untitled')}</b><br><small>${l.blocks.some(b => b.type === 'link') ? 'Video / link · ' : ''}${l.blocks.length} blocks</small></div>${I('chev', 'muted')}</div>`).join('') : `<div class="cell muted">No lessons yet — tap + to add one.</div>`}</div></div>`; }).join('');
+    $$('[data-addl]', box).forEach(b => b.onclick = () => { const p = newPage(null, '', '📄', null, c.id, b.dataset.addl || null); save(); openPage(p.id, true); });
+    $$('[data-done]', box).forEach(b => b.onclick = e => { e.stopPropagation(); const l = pageById(b.dataset.done); l.done = !l.done; save(); V.course(); });
+    $$('.lesson[data-open]', box).forEach(x => x.onclick = () => openPage(x.dataset.open));
+    return;
+  }
   if (courseTab === 'notes') {
     box.innerHTML = `<div class="row" style="margin:12px 0"><button class="btn-blue" id="nAdd">+ New note</button><button id="nPdf">⎙ Export PDF</button></div>
-      <div class="group">${pages.length ? pages.sort((a, b) => b.updated - a.updated).map(p => `<div class="cell" data-open="${p.id}" style="cursor:pointer"><span style="font-size:22px">${p.icon}</span><div class="grow"><b>${esc(p.title || 'Untitled')}</b><br><small>${esc(modName(c.id, pageMod(p)))} · ${new Date(p.updated).toLocaleDateString('en-GB')}</small></div><span class="muted">›</span></div>`).join('') : '<div class="cell muted">No notes here yet.</div>'}</div>`;
+      <div class="group">${pages.length ? pages.sort((a, b) => b.updated - a.updated).map(p => `<div class="cell" data-open="${p.id}" style="cursor:pointer"><span style="font-size:22px">${p.icon}</span><div class="grow"><b>${esc(p.title || 'Untitled')}</b><br><small>${esc(modName(c.id, pageMod(p)))} · ${new Date(p.updated).toLocaleDateString('en-GB')}</small></div><button class="iconbtn danger" data-ptr="${p.id}" aria-label="Move to trash">${I('trash')}</button></div>`).join('') : '<div class="cell muted">No notes here yet.</div>'}</div>`;
     $('#nAdd').onclick = () => { const p = newPage(null, '', '📄', null, c.id, m); S.settings.expanded['c:' + c.id] = true; S.settings.expanded['m:' + (m || c.id + '-gen')] = true; save(); openPage(p.id, true); };
     $('#nPdf').onclick = () => { if (!pages.length) { toast('No notes to export'); return; } const order = []; const add = p => { order.push(p); kids(p.id).forEach(add); }; pages.filter(p => !p.parent).forEach(add); exportPDF(order, c.name + (m ? ' - ' + modName(c.id, m) : '')); };
-    $$('[data-open]', box).forEach(x => x.onclick = () => { V._openPage = true; openPage(x.dataset.open); });
+    $$('[data-open]', box).forEach(x => x.onclick = e => { if (e.target.closest('[data-ptr]')) return; openPage(x.dataset.open); });
+    $$('[data-ptr]', box).forEach(b => b.onclick = () => askTrash(pageById(b.dataset.ptr)));
   }
   if (courseTab === 'cards') {
     box.innerHTML = `<div class="row" style="margin:12px 0"><button class="btn-blue" id="kAdd">+ New card</button></div>
-      <div class="group">${cards.length ? cards.slice(0, 200).map(k => `<div class="cell"><div class="grow" dir="auto">${esc(k.front)}<br><small>${esc(modName(c.id, k.mod))} · ${k.susp ? 'paused' : k.state === 'new' ? 'new' : 'next ' + new Date(k.due).toLocaleDateString('en-GB')}</small></div><button data-e="${k.id}">Edit</button></div>`).join('') : '<div class="cell muted">No cards yet. Select text in a note → Card.</div>'}</div>`;
+      <div class="group">${cards.length ? cards.slice(0, 200).map(k => `<div class="cell"><div class="grow" dir="auto">${esc(k.front)}<br><small>${esc(modName(c.id, k.mod))} · ${k.susp ? 'paused' : k.state === 'new' ? 'new' : 'next ' + new Date(k.due).toLocaleDateString('en-GB')}</small></div><button data-e="${k.id}">Edit</button><button class="iconbtn danger" data-kdel="${k.id}" aria-label="Delete card">${I('trash')}</button></div>`).join('') : '<div class="cell muted">No cards yet. Select text in a note → Card.</div>'}</div>`;
     $('#kAdd').onclick = () => cardSheet({ course: c.id, mod: m, onSaved: V.course });
     $$('[data-e]', box).forEach(b => b.onclick = () => editCard(S.cards.find(k => k.id === b.dataset.e), V.course));
+    $$('[data-kdel]', box).forEach(b => b.onclick = () => { if (!b.dataset.sure) { b.dataset.sure = 1; b.classList.add('confirm'); toast('Tap the bin again to delete'); return; } S.cards = S.cards.filter(k => k.id !== b.dataset.kdel); save(); V.course(); });
   }
   if (courseTab === 'questions') {
     box.innerHTML = `<div class="row" style="margin:12px 0"><button class="btn-blue" id="qAdd">+ New question</button></div>
-      <div class="group">${qs.length ? qs.map(q => `<div class="cell"><div class="grow" dir="auto">${esc(q.q)}<br><small>${{ mcq: 'Multiple choice', sata: 'Select all', tf: 'True/False' }[q.type]} · ${esc(modName(c.id, q.mod))}${q.seen ? ` · ${Math.round((q.right || 0) / q.seen * 100)}% right` : ''}</small></div><button data-q="${q.id}">Edit</button></div>`).join('') : '<div class="cell muted">No questions yet.</div>'}</div>`;
+      <div class="group">${qs.length ? qs.map(q => `<div class="cell"><div class="grow" dir="auto">${esc(q.q)}<br><small>${{ mcq: 'Multiple choice', sata: 'Select all', tf: 'True/False' }[q.type]} · ${esc(modName(c.id, q.mod))}${q.seen ? ` · ${Math.round((q.right || 0) / q.seen * 100)}% right` : ''}</small></div><button data-q="${q.id}">Edit</button><button class="iconbtn danger" data-qdel="${q.id}" aria-label="Delete question">${I('trash')}</button></div>`).join('') : '<div class="cell muted">No questions yet.</div>'}</div>`;
     $('#qAdd').onclick = () => questionSheet({ course: c.id, mod: m, onSaved: V.course });
     $$('[data-q]', box).forEach(b => b.onclick = () => questionSheet({ q: S.questions.find(q => q.id === b.dataset.q), onSaved: V.course }));
+    $$('[data-qdel]', box).forEach(b => b.onclick = () => { if (!b.dataset.sure) { b.dataset.sure = 1; b.classList.add('confirm'); toast('Tap the bin again to delete'); return; } S.questions = S.questions.filter(q => q.id !== b.dataset.qdel); save(); V.course(); });
   }
   if (courseTab === 'modules') {
     box.innerHTML = `<div class="group" style="margin-top:12px">${c.modules.map(x => { const d = dueCards({ course: c.id, mod: x.id }); return `<div class="cell" data-m="${x.id}" style="cursor:pointer"><div class="grow"><b>${esc(x.name)}</b><br><small>${pagesIn(c.id, x.id).length} notes · ${cardsIn(c.id, x.id).length} cards · ${qsIn(c.id, x.id).length} questions</small></div>${d.rev.length + d.nw.length ? `<span class="tag" style="background:${c.color}">${d.rev.length + d.nw.length} due</span>` : ''}<button data-me="${x.id}">Rename</button></div>`; }).join('')}</div>`;
-    $$('[data-m]', box).forEach(r => r.onclick = e => { if (e.target.closest('[data-me]')) return; curMod = r.dataset.m; courseTab = 'notes'; V.course(); });
+    $$('[data-m]', box).forEach(r => r.onclick = e => { if (e.target.closest('[data-me]')) return; curMod = r.dataset.m; courseTab = 'learn'; V.course(); });
     $$('[data-me]', box).forEach(b => b.onclick = () => moduleSheet(c, c.modules.find(x => x.id === b.dataset.me)));
   }
 }
